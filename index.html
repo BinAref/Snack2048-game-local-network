@@ -16,7 +16,6 @@
       <div class="score-line"><span class="label">النقاط</span><span id="score" class="value">0</span></div>
       <div class="score-line"><span class="label">الطول</span><span id="length" class="value">1</span></div>
     </div>
-    <!-- شريط الطاقة -->
     <div id="boost-bar-wrap">
       <div id="boost-bar-fill"></div>
       <span id="boost-bar-label">⚡</span>
@@ -29,52 +28,80 @@
     <ol id="lb-list"></ol>
   </div>
 
-  <!-- شاشة البداية -->
+  <!-- ===== شاشة البداية ===== -->
   <div id="start-screen" class="overlay">
     <div class="panel">
-      <h1>Snake&nbsp;2048</h1>
-      <p>حرّك الماوس لتوجيه الثعبان · اضغط باستمرار (أو مسطرة المسافة) للتسارع</p>
+      <h1>Snake 2048</h1>
+      <p>حرّك الماوس لتوجيه الثعبان · اضغط باستمرار للتسارع</p>
+
       <input id="name-input" type="text" maxlength="14" placeholder="اكتب اسمك" autocomplete="off"/>
+
       <div class="hint">
         <span><b>⚡</b> سرعة</span>
         <span><b>×2</b> مضاعفة</span>
         <span><b>÷2</b> نصف</span>
-        <span class="click-hint">اضغط مطوّلاً / Space للتسارع (شريط طاقة)</span>
+        <span class="click-hint">اضغط مطوّلاً / Space للتسارع</span>
       </div>
 
-      <!-- أوضاع اللعب -->
-      <div id="mode-tabs">
-        <button class="mode-tab active" id="tab-solo" onclick="selectTab('solo')">منفرد</button>
-        <button class="mode-tab" id="tab-host" onclick="selectTab('host')">استضافة</button>
-        <button class="mode-tab" id="tab-join" onclick="selectTab('join')">انضمام</button>
+      <!-- ===== وضع منفرد / جماعي ===== -->
+      <div id="mode-switch">
+        <button id="btn-solo"  class="switch-btn active" onclick="switchMode('solo')">منفرد</button>
+        <button id="btn-multi" class="switch-btn"        onclick="switchMode('multi')">جماعي</button>
       </div>
 
       <!-- Solo -->
-      <div id="mode-solo" class="mode-panel">
+      <div id="panel-solo" class="sub-panel">
         <button id="play-btn" class="main-btn">ابدأ اللعب</button>
       </div>
 
-      <!-- Host -->
-      <div id="mode-host" class="mode-panel hidden">
-        <button id="host-btn" class="main-btn">أنشئ غرفة</button>
-        <div id="room-code-wrap" class="hidden">
-          <p class="room-label">كود الغرفة — شاركه مع أصدقائك:</p>
-          <div id="room-code-display"></div>
-          <button id="copy-code-btn" class="small-btn">نسخ</button>
-          <div id="host-status" class="status-msg">في انتظار اللاعبين…</div>
-        </div>
-      </div>
+      <!-- Multi -->
+      <div id="panel-multi" class="sub-panel hidden">
 
-      <!-- Join -->
-      <div id="mode-join" class="mode-panel hidden">
-        <input id="join-code-input" type="text" maxlength="8" placeholder="أدخل كود الغرفة" autocomplete="off"/>
-        <button id="join-btn" class="main-btn">انضمام</button>
-        <div id="join-status" class="status-msg"></div>
+        <!-- استضافة -->
+        <div id="section-host">
+          <div class="section-title">استضافة غرفة</div>
+
+          <!-- سويتش كلمة سر -->
+          <div class="toggle-row">
+            <span class="toggle-label">كلمة سر</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="use-password" onchange="togglePassword()"/>
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <input id="host-password" type="text" maxlength="20"
+                 placeholder="كلمة السر" autocomplete="off"
+                 class="hidden"/>
+
+          <button id="host-btn" class="main-btn" onclick="doHost()">أنشئ غرفة</button>
+
+          <div id="room-code-wrap" class="hidden">
+            <div class="room-label">كود الغرفة</div>
+            <div id="room-code-display"></div>
+            <button class="small-btn" onclick="copyCode()">نسخ الكود</button>
+            <div id="host-status" class="status-msg">في انتظار اللاعبين…</div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- انضمام -->
+        <div id="section-join">
+          <div class="section-title">انضمام</div>
+          <input id="join-code-input" type="text" maxlength="40"
+                 placeholder="كود الغرفة" autocomplete="off"/>
+          <input id="join-password" type="text" maxlength="20"
+                 placeholder="كلمة السر (اتركها فارغة إن لم تكن هناك)" autocomplete="off"/>
+          <button id="join-btn" class="main-btn" onclick="doJoin()">انضمام</button>
+          <div id="join-status" class="status-msg"></div>
+        </div>
+
       </div>
     </div>
   </div>
 
-  <!-- شاشة النهاية -->
+  <!-- ===== شاشة النهاية ===== -->
   <div id="over-screen" class="overlay hidden">
     <div class="panel">
       <h1>انتهت اللعبة</h1>
@@ -84,7 +111,6 @@
     </div>
   </div>
 
-  <!-- PeerJS من CDN -->
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="game.js"></script>
 </body>

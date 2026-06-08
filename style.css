@@ -1,247 +1,205 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 html, body {
-  width: 100%;
-  height: 100%;
+  width: 100%; height: 100%;
   overflow: hidden;
   background: #0f2a4a;
   font-family: "Segoe UI", Tahoma, "Cairo", sans-serif;
-  -webkit-user-select: none;
-  user-select: none;
+  -webkit-user-select: none; user-select: none;
   touch-action: none;
 }
 
 #game {
-  display: block;
-  width: 100vw;
-  height: 100vh;
+  display: block; width: 100vw; height: 100vh;
   cursor: crosshair;
 }
 
-/* ===== HUD ===== */
+/* ── HUD ─────────────────────────────────────── */
 #hud {
-  position: fixed;
-  top: 12px;
-  left: 12px;
-  z-index: 10;
-  pointer-events: none;
+  position: fixed; top: 12px; left: 12px;
+  z-index: 10; pointer-events: none;
 }
-
 #score-box {
-  background: rgba(8, 24, 44, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  padding: 10px 14px;
-  backdrop-filter: blur(4px);
-  min-width: 130px;
+  background: rgba(8,24,44,0.6);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px; padding: 10px 14px;
+  backdrop-filter: blur(4px); min-width: 130px;
 }
-
 .score-line {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  color: #cfe3ff;
-  font-size: 14px;
-  line-height: 1.9;
+  display: flex; justify-content: space-between; gap: 16px;
+  color: #cfe3ff; font-size: 14px; line-height: 1.9;
 }
-.score-line .label { opacity: 0.8; }
+.score-line .label { opacity: .8; }
 .score-line .value { font-weight: 700; color: #fff; }
 
 /* شريط الطاقة */
 #boost-bar-wrap {
-  position: relative;
-  margin-top: 8px;
-  height: 18px;
-  background: rgba(8, 24, 44, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 9px;
-  overflow: hidden;
+  position: relative; margin-top: 7px; height: 18px;
+  background: rgba(8,24,44,0.6);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 9px; overflow: hidden;
   backdrop-filter: blur(4px);
 }
 #boost-bar-fill {
-  height: 100%;
-  width: 100%;
-  background: linear-gradient(90deg, #1a6fda, #19d3ff);
-  border-radius: 9px;
-  transition: width 0.1s linear, background 0.2s;
+  height: 100%; width: 100%;
+  background: linear-gradient(90deg,#1a6fda,#19d3ff);
+  border-radius: 9px; transition: width .1s linear, background .2s;
 }
 #boost-bar-wrap.boosting #boost-bar-fill {
-  background: linear-gradient(90deg, #ff7a00, #ffe040);
+  background: linear-gradient(90deg,#ff7a00,#ffe040);
 }
 #boost-bar-label {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 800;
-  color: #fff;
-  text-shadow: 0 0 4px #000;
-  pointer-events: none;
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 800; color: #fff;
+  text-shadow: 0 0 4px #000; pointer-events: none;
 }
 
-/* ===== Leaderboard ===== */
+/* ── Leaderboard ─────────────────────────────── */
 #leaderboard {
-  position: fixed;
-  top: 12px;
-  right: 12px;
-  z-index: 10;
-  background: rgba(8, 24, 44, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  padding: 8px 12px;
-  min-width: 190px;
-  backdrop-filter: blur(4px);
-  pointer-events: none;
+  position: fixed; top: 12px; right: 12px; z-index: 10;
+  background: rgba(8,24,44,0.6);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px; padding: 8px 12px; min-width: 190px;
+  backdrop-filter: blur(4px); pointer-events: none;
 }
-.lb-title {
-  color: #ffd76a;
-  font-weight: 700;
-  font-size: 13px;
-  margin-bottom: 6px;
-  text-align: center;
-}
+.lb-title { color: #ffd76a; font-weight: 700; font-size: 13px; margin-bottom: 6px; text-align: center; }
 #lb-list { list-style: none; }
-#lb-list li {
-  display: flex;
-  justify-content: space-between;
-  color: #cfe3ff;
-  font-size: 13px;
-  line-height: 1.8;
-}
+#lb-list li { display: flex; justify-content: space-between; color: #cfe3ff; font-size: 13px; line-height: 1.8; }
 #lb-list li.me { color: #4fd1ff; font-weight: 700; }
-#lb-list li .rank { opacity: 0.7; margin-left: 6px; }
+#lb-list li .rank { opacity: .7; margin-left: 6px; }
 
-/* ===== Overlays ===== */
+/* ── Overlay ─────────────────────────────────── */
 .overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(6, 18, 36, 0.72);
-  backdrop-filter: blur(3px);
+  position: fixed; inset: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(6,18,36,0.75); backdrop-filter: blur(4px);
 }
 .overlay.hidden { display: none; }
 
 .panel {
-  background: linear-gradient(160deg, #14365f, #0d2342);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 20px;
-  padding: 28px 32px;
-  text-align: center;
-  max-width: 440px;
-  width: 95%;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  background: linear-gradient(160deg,#14365f,#0d2342);
+  border: 1px solid rgba(255,255,255,0.13);
+  border-radius: 22px; padding: 28px 28px 24px;
+  text-align: center; max-width: 400px; width: 94%;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.55);
 }
-.panel h1 {
-  color: #fff;
-  font-size: 30px;
-  margin-bottom: 10px;
-  letter-spacing: 1px;
-}
-.panel p {
-  color: #b9d2f0;
-  font-size: 14px;
-  line-height: 1.8;
-  margin-bottom: 16px;
-}
-#name-input, #join-code-input {
-  width: 100%;
-  text-align: center;
-  font-size: 17px;
-  font-weight: 700;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 10px;
-  padding: 10px 12px;
-  margin-bottom: 14px;
-  outline: none;
-}
-#name-input:focus, #join-code-input:focus { border-color: #ffd24a; }
+.panel h1 { color: #fff; font-size: 28px; margin-bottom: 8px; letter-spacing: 1px; }
+.panel > p { color: #b9d2f0; font-size: 13px; line-height: 1.7; margin-bottom: 14px; }
 
+/* اسم اللاعب */
+#name-input {
+  width: 100%; text-align: center;
+  font-size: 16px; font-weight: 700; color: #fff;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; outline: none;
+}
+#name-input:focus { border-color: #ffd24a; }
+
+/* hint */
 .hint {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px 12px;
-  margin-bottom: 16px;
-  font-size: 13px;
-  color: #aac6e8;
+  display: flex; flex-wrap: wrap; justify-content: center;
+  gap: 5px 12px; margin-bottom: 16px;
+  font-size: 12px; color: #aac6e8;
 }
 .hint b { color: #ffd76a; }
-.hint .click-hint { width: 100%; color: #4fd1ff; opacity: 0.9; font-size: 12px; }
+.hint .click-hint { width: 100%; color: #4fd1ff; opacity: .9; }
 
-/* ===== Tabs ===== */
-#mode-tabs {
-  display: flex;
-  gap: 6px;
-  justify-content: center;
-  margin-bottom: 14px;
+/* ── وضع منفرد / جماعي ───────────────────────── */
+#mode-switch {
+  display: flex; gap: 8px; justify-content: center; margin-bottom: 16px;
 }
-.mode-tab {
-  background: rgba(255,255,255,0.07);
-  color: #aac6e8;
-  border: 1px solid rgba(255,255,255,0.15);
-  border-radius: 8px;
-  padding: 7px 18px;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+.switch-btn {
+  flex: 1; padding: 10px 0; font-size: 15px; font-weight: 700;
+  border: 2px solid rgba(255,255,255,0.15);
+  border-radius: 12px; cursor: pointer;
+  background: rgba(255,255,255,0.06); color: #aac6e8;
+  transition: all .15s;
 }
-.mode-tab.active {
-  background: rgba(80, 180, 255, 0.2);
-  color: #4fd1ff;
-  border-color: #4fd1ff;
+.switch-btn.active {
+  background: rgba(80,180,255,0.18);
+  border-color: #4fd1ff; color: #4fd1ff;
 }
-.mode-tab:hover { background: rgba(255,255,255,0.13); }
+.switch-btn:hover:not(.active) { background: rgba(255,255,255,0.11); }
 
-.mode-panel { min-height: 70px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
-.mode-panel.hidden { display: none; }
+/* ── Sub panels ──────────────────────────────── */
+.sub-panel { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.sub-panel.hidden { display: none; }
 
-/* ===== Buttons ===== */
+.section-title {
+  font-size: 13px; font-weight: 700; color: #ffd76a;
+  text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px;
+}
+
+/* divider */
+.divider {
+  width: 80%; height: 1px;
+  background: linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent);
+  margin: 4px 0;
+}
+
+/* inputs داخل multi */
+#host-password, #join-code-input, #join-password {
+  width: 100%; text-align: center;
+  font-size: 15px; font-weight: 600; color: #fff;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 10px; padding: 9px 12px; outline: none;
+}
+#host-password:focus, #join-code-input:focus, #join-password:focus { border-color: #ffd24a; }
+#host-password.hidden { display: none; }
+
+/* ── Toggle Switch ───────────────────────────── */
+.toggle-row {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+}
+.toggle-label { color: #b9d2f0; font-size: 14px; }
+.toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+  position: absolute; inset: 0; cursor: pointer;
+  background: rgba(255,255,255,0.15); border-radius: 24px;
+  transition: background .2s;
+}
+.slider:before {
+  content: ""; position: absolute;
+  height: 18px; width: 18px; left: 3px; bottom: 3px;
+  background: #fff; border-radius: 50%; transition: transform .2s;
+}
+.toggle-switch input:checked + .slider { background: #19d3ff; }
+.toggle-switch input:checked + .slider:before { transform: translateX(20px); }
+
+/* ── كود الغرفة ──────────────────────────────── */
+#room-code-wrap {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  width: 100%;
+}
+#room-code-wrap.hidden { display: none; }
+.room-label { color: #b9d2f0; font-size: 12px; }
+#room-code-display {
+  font-size: 22px; font-weight: 900; color: #ffd24a;
+  letter-spacing: 4px; word-break: break-all; text-align: center;
+}
+
+/* ── Buttons ─────────────────────────────────── */
 .main-btn {
-  background: linear-gradient(180deg, #ffd24a, #ff9f1c);
-  color: #3a2400;
-  font-size: 17px;
-  font-weight: 800;
-  border: none;
-  border-radius: 12px;
-  padding: 11px 34px;
-  cursor: pointer;
-  transition: transform 0.08s ease, filter 0.15s ease;
+  background: linear-gradient(180deg,#ffd24a,#ff9f1c);
+  color: #3a2400; font-size: 16px; font-weight: 800;
+  border: none; border-radius: 12px; padding: 11px 32px;
+  cursor: pointer; transition: transform .08s, filter .15s; width: 100%;
 }
 .main-btn:hover { filter: brightness(1.08); }
 .main-btn:active { transform: translateY(2px); }
-.main-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.main-btn:disabled { opacity: .5; cursor: not-allowed; }
 
 .small-btn {
   background: rgba(255,255,255,0.1);
-  color: #cfe3ff;
-  border: 1px solid rgba(255,255,255,0.2);
-  border-radius: 8px;
-  padding: 5px 14px;
-  font-size: 13px;
-  cursor: pointer;
+  color: #cfe3ff; border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 8px; padding: 5px 16px; font-size: 13px; cursor: pointer;
 }
 .small-btn:hover { background: rgba(255,255,255,0.18); }
 
-/* كود الغرفة */
-.room-label { color: #b9d2f0; font-size: 13px; margin-bottom: 4px; }
-#room-code-display {
-  font-size: 28px;
-  font-weight: 900;
-  color: #ffd24a;
-  letter-spacing: 6px;
-  margin: 4px 0 8px;
-}
-.status-msg {
-  color: #4fd1ff;
-  font-size: 13px;
-  min-height: 20px;
-}
+/* رسائل الحالة */
+.status-msg { color: #4fd1ff; font-size: 13px; min-height: 18px; }
 .status-msg.error { color: #ff7a7a; }

@@ -619,6 +619,16 @@ function setupHostListeners() {
 
 function handleHostReceive(peerId, msg) {
   if (msg.t === "hello") {
+    // تحقّق من كلمة السر
+    if (roomPassword !== "" && (msg.password || "") !== roomPassword) {
+      // أخطئ وأغلق
+      try {
+        guestConns[peerId].send(JSON.stringify({ t:"rejected", reason:"كلمة السر غير صحيحة" }));
+        guestConns[peerId].close();
+      } catch(e){}
+      delete guestConns[peerId];
+      return;
+    }
     if (!remotePlayers[peerId]) {
       remotePlayers[peerId] = {
         name: escapeHtml(msg.name || "ضيف"),
@@ -627,6 +637,13 @@ function handleHostReceive(peerId, msg) {
         colorIdx: (colorCounter++ % PEER_COLORS.length),
       };
     }
+    // أرسل تأكيد القبول + حالة العالم
+    try {
+      guestConns[peerId].send(JSON.stringify({ t:"accepted" }));
+      guestConns[peerId].send(JSON.stringify(buildWorldMsg()));
+      guestConns[peerId].send(JSON.stringify(buildPeersMsg()));
+      if (state === "playing") guestConns[peerId].send(JSON.stringify({ t:"start" }));
+    } catch(e){}
     updateHostStatus();
   }
   if (msg.t === "input") {
@@ -656,6 +673,16 @@ function handleHostReceive(peerId, msg) {
 
 // Guest: معالجة رسائل الـ Host
 function handleGuestReceive(msg) {
+  if (msg.t === "rejected") {
+    setJoinStatus(msg.reason || "رُفض الانضمام", true);
+    document.getElementById("join-btn").disabled = false;
+    netMode = "solo";
+    if (hostConn) { try { hostConn.close(); } catch(e){} hostConn = null; }
+    return;
+  }
+  if (msg.t === "accepted") {
+    setJoinStatus("تم القبول! في انتظار بدء اللعبة…");
+  }
   if (msg.t === "world") {
     // استقبل خريطة الـ Host
     obstacles = (msg.obstacles || []);
@@ -744,7 +771,7 @@ function startAsHost() {
   broadcast({ t:"start" });
 }
 
-function joinAsGuest(code) {
+function joinAsGuest(code, password) {
   netMode = "guest";
   playerName = getNameInput();
   myColorIndex = colorCounter++ % PEER_COLORS.length;
@@ -754,8 +781,8 @@ function joinAsGuest(code) {
 
   hostConn = peer.connect(code.trim(), { reliable:true, serialization:"raw" });
   hostConn.on("open", () => {
-    setJoinStatus("متصل! في انتظار بدء اللعبة…");
-    hostConn.send(JSON.stringify({ t:"hello", name:playerName }));
+    setJoinStatus("متصل! في انتظار التحقق…");
+    hostConn.send(JSON.stringify({ t:"hello", name:playerName, password: password||"" }));
   });
   hostConn.on("data", raw => {
     try { handleGuestReceive(JSON.parse(raw)); } catch(e){}
@@ -1169,40 +1196,29 @@ function escapeHtml(s) {
 }
 
 // -------------------------------------------------------------------------
-// واجهة القوائم
+// واجهة القوائم — منفرد / جماعي
 // -------------------------------------------------------------------------
-window.selectTab = function(tab) {
-  ["solo","host","join"].forEach(t => {
-    document.getElementById("tab-"+t).classList.toggle("active", t===tab);
-    document.getElementById("mode-"+t).classList.toggle("hidden", t!==tab);
-  });
+
+// كلمة سر الغرفة الحالية (Host يحددها، Guest يرسلها في hello)
+let roomPassword = "";
+
+window.switchMode = function(mode) {
+  document.getElementById("btn-solo").classList.toggle("active",  mode==="solo");
+  document.getElementById("btn-multi").classList.toggle("active", mode==="multi");
+  document.getElementById("panel-solo").classList.toggle("hidden",  mode!=="solo");
+  document.getElementById("panel-multi").classList.toggle("hidden", mode!=="multi");
 };
 
-function setHostStatus(msg) {
-  const el = document.getElementById("host-status");
-  if (el) el.textContent = msg;
-}
-function updateHostStatus() {
-  const count = Object.keys(guestConns).length;
-  setHostStatus(`متصل: ${count} لاعب${count===1?"":"ين"} — يمكنهم الدخول الآن`);
-}
-function setJoinStatus(msg, isError) {
-  const el = document.getElementById("join-status");
-  if (!el) return;
-  el.textContent = msg;
-  el.classList.toggle("error", !!isError);
-}
+window.togglePassword = function() {
+  const checked = document.getElementById("use-password").checked;
+  document.getElementById("host-password").classList.toggle("hidden", !checked);
+};
 
-// -------------------------------------------------------------------------
-// أزرار الشاشة
-// -------------------------------------------------------------------------
-document.getElementById("play-btn").addEventListener("click", startSolo);
-document.getElementById("restart-btn").addEventListener("click", restartGame);
-
-document.getElementById("host-btn").addEventListener("click", () => {
+window.doHost = function() {
   const btn = document.getElementById("host-btn");
-  btn.disabled = true;
-  btn.textContent = "جارٍ الإنشاء…";
+  btn.disabled = true; btn.textContent = "جارٍ الإنشاء…";
+  const usePass = document.getElementById("use-password").checked;
+  roomPassword  = usePass ? (document.getElementById("host-password").value.trim()) : "";
   initPeer(id => {
     setupHostListeners();
     document.getElementById("room-code-wrap").classList.remove("hidden");
@@ -1212,23 +1228,45 @@ document.getElementById("host-btn").addEventListener("click", () => {
     btn.disabled = false;
     btn.onclick = startAsHost;
   });
-});
+};
 
-document.getElementById("copy-code-btn").addEventListener("click", () => {
-  const code = document.getElementById("room-code-display").textContent;
-  navigator.clipboard.writeText(code).then(()=>{
-    document.getElementById("copy-code-btn").textContent = "تم النسخ ✓";
-    setTimeout(()=>{ document.getElementById("copy-code-btn").textContent="نسخ"; }, 1500);
-  }).catch(()=>{});
-});
-
-document.getElementById("join-btn").addEventListener("click", () => {
+window.doJoin = function() {
   const code = document.getElementById("join-code-input").value.trim();
   if (!code) { setJoinStatus("أدخل كود الغرفة أولاً", true); return; }
   setJoinStatus("جارٍ الاتصال…");
   document.getElementById("join-btn").disabled = true;
-  initPeer(() => joinAsGuest(code));
-});
+  const pass = document.getElementById("join-password").value.trim();
+  initPeer(() => joinAsGuest(code, pass));
+};
+
+window.copyCode = function() {
+  const code = document.getElementById("room-code-display").textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    const btn = document.querySelector("#room-code-wrap .small-btn");
+    if (btn) { btn.textContent = "تم النسخ ✓"; setTimeout(()=>{ btn.textContent="نسخ الكود"; },1500); }
+  }).catch(()=>{});
+};
+
+function setHostStatus(msg) {
+  const el = document.getElementById("host-status");
+  if (el) el.textContent = msg;
+}
+function updateHostStatus() {
+  const count = Object.keys(guestConns).length;
+  setHostStatus(`متصل: ${count} لاعب${count===1?"":"ين"}`);
+}
+function setJoinStatus(msg, isError) {
+  const el = document.getElementById("join-status");
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.toggle("error", !!isError);
+}
+
+// -------------------------------------------------------------------------
+// أزرار ثابتة
+// -------------------------------------------------------------------------
+document.getElementById("play-btn").addEventListener("click", startSolo);
+document.getElementById("restart-btn").addEventListener("click", restartGame);
 
 // -------------------------------------------------------------------------
 // الحلقة الرئيسية
