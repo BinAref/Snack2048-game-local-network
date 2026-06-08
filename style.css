@@ -47,6 +47,40 @@ html, body {
 .score-line .label { opacity: 0.8; }
 .score-line .value { font-weight: 700; color: #fff; }
 
+/* شريط الطاقة */
+#boost-bar-wrap {
+  position: relative;
+  margin-top: 8px;
+  height: 18px;
+  background: rgba(8, 24, 44, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9px;
+  overflow: hidden;
+  backdrop-filter: blur(4px);
+}
+#boost-bar-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #1a6fda, #19d3ff);
+  border-radius: 9px;
+  transition: width 0.1s linear, background 0.2s;
+}
+#boost-bar-wrap.boosting #boost-bar-fill {
+  background: linear-gradient(90deg, #ff7a00, #ffe040);
+}
+#boost-bar-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 0 4px #000;
+  pointer-events: none;
+}
+
 /* ===== Leaderboard ===== */
 #leaderboard {
   position: fixed;
@@ -57,7 +91,7 @@ html, body {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
   padding: 8px 12px;
-  min-width: 170px;
+  min-width: 190px;
   backdrop-filter: blur(4px);
   pointer-events: none;
 }
@@ -96,24 +130,25 @@ html, body {
   background: linear-gradient(160deg, #14365f, #0d2342);
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 20px;
-  padding: 32px 36px;
+  padding: 28px 32px;
   text-align: center;
-  max-width: 420px;
+  max-width: 440px;
+  width: 95%;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 .panel h1 {
   color: #fff;
-  font-size: 34px;
-  margin-bottom: 14px;
+  font-size: 30px;
+  margin-bottom: 10px;
   letter-spacing: 1px;
 }
 .panel p {
   color: #b9d2f0;
-  font-size: 15px;
-  line-height: 1.9;
-  margin-bottom: 22px;
+  font-size: 14px;
+  line-height: 1.8;
+  margin-bottom: 16px;
 }
-#name-input {
+#name-input, #join-code-input {
   width: 100%;
   text-align: center;
   font-size: 17px;
@@ -123,33 +158,90 @@ html, body {
   border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 10px;
   padding: 10px 12px;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
   outline: none;
 }
-#name-input:focus { border-color: #ffd24a; }
+#name-input:focus, #join-code-input:focus { border-color: #ffd24a; }
 
 .hint {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 8px 14px;
-  margin-bottom: 20px;
+  gap: 6px 12px;
+  margin-bottom: 16px;
   font-size: 13px;
   color: #aac6e8;
 }
 .hint b { color: #ffd76a; }
-.hint .click-hint { width: 100%; color: #4fd1ff; opacity: 0.9; }
+.hint .click-hint { width: 100%; color: #4fd1ff; opacity: 0.9; font-size: 12px; }
 
-.panel button {
+/* ===== Tabs ===== */
+#mode-tabs {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.mode-tab {
+  background: rgba(255,255,255,0.07);
+  color: #aac6e8;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 8px;
+  padding: 7px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.mode-tab.active {
+  background: rgba(80, 180, 255, 0.2);
+  color: #4fd1ff;
+  border-color: #4fd1ff;
+}
+.mode-tab:hover { background: rgba(255,255,255,0.13); }
+
+.mode-panel { min-height: 70px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.mode-panel.hidden { display: none; }
+
+/* ===== Buttons ===== */
+.main-btn {
   background: linear-gradient(180deg, #ffd24a, #ff9f1c);
   color: #3a2400;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 800;
   border: none;
   border-radius: 12px;
-  padding: 12px 38px;
+  padding: 11px 34px;
   cursor: pointer;
   transition: transform 0.08s ease, filter 0.15s ease;
 }
-.panel button:hover { filter: brightness(1.08); }
-.panel button:active { transform: translateY(2px); }
+.main-btn:hover { filter: brightness(1.08); }
+.main-btn:active { transform: translateY(2px); }
+.main-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.small-btn {
+  background: rgba(255,255,255,0.1);
+  color: #cfe3ff;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 8px;
+  padding: 5px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.small-btn:hover { background: rgba(255,255,255,0.18); }
+
+/* كود الغرفة */
+.room-label { color: #b9d2f0; font-size: 13px; margin-bottom: 4px; }
+#room-code-display {
+  font-size: 28px;
+  font-weight: 900;
+  color: #ffd24a;
+  letter-spacing: 6px;
+  margin: 4px 0 8px;
+}
+.status-msg {
+  color: #4fd1ff;
+  font-size: 13px;
+  min-height: 20px;
+}
+.status-msg.error { color: #ff7a7a; }

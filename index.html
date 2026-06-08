@@ -16,9 +16,14 @@
       <div class="score-line"><span class="label">النقاط</span><span id="score" class="value">0</span></div>
       <div class="score-line"><span class="label">الطول</span><span id="length" class="value">1</span></div>
     </div>
+    <!-- شريط الطاقة -->
+    <div id="boost-bar-wrap">
+      <div id="boost-bar-fill"></div>
+      <span id="boost-bar-label">⚡</span>
+    </div>
   </div>
 
-  <!-- Leaderboard (placeholder حتى نضيف البوتات) -->
+  <!-- Leaderboard -->
   <div id="leaderboard">
     <div class="lb-title">المتصدّرون</div>
     <ol id="lb-list"></ol>
@@ -28,16 +33,44 @@
   <div id="start-screen" class="overlay">
     <div class="panel">
       <h1>Snake&nbsp;2048</h1>
-      <p>حرّك الماوس (أو إصبعك) لتوجيه الثعبان.<br/>
-         كُل المكعبات الأصغر أو المساوية لرأسك، وادمج الأرقام المتشابهة.</p>
-      <input id="name-input" type="text" maxlength="14" placeholder="اكتب اسمك" />
+      <p>حرّك الماوس لتوجيه الثعبان · اضغط باستمرار (أو مسطرة المسافة) للتسارع</p>
+      <input id="name-input" type="text" maxlength="14" placeholder="اكتب اسمك" autocomplete="off"/>
       <div class="hint">
         <span><b>⚡</b> سرعة</span>
         <span><b>×2</b> مضاعفة</span>
         <span><b>÷2</b> نصف</span>
-        <span class="click-hint">انقر بالماوس لدفعة سرعة</span>
+        <span class="click-hint">اضغط مطوّلاً / Space للتسارع (شريط طاقة)</span>
       </div>
-      <button id="play-btn">ابدأ اللعب</button>
+
+      <!-- أوضاع اللعب -->
+      <div id="mode-tabs">
+        <button class="mode-tab active" id="tab-solo" onclick="selectTab('solo')">منفرد</button>
+        <button class="mode-tab" id="tab-host" onclick="selectTab('host')">استضافة</button>
+        <button class="mode-tab" id="tab-join" onclick="selectTab('join')">انضمام</button>
+      </div>
+
+      <!-- Solo -->
+      <div id="mode-solo" class="mode-panel">
+        <button id="play-btn" class="main-btn">ابدأ اللعب</button>
+      </div>
+
+      <!-- Host -->
+      <div id="mode-host" class="mode-panel hidden">
+        <button id="host-btn" class="main-btn">أنشئ غرفة</button>
+        <div id="room-code-wrap" class="hidden">
+          <p class="room-label">كود الغرفة — شاركه مع أصدقائك:</p>
+          <div id="room-code-display"></div>
+          <button id="copy-code-btn" class="small-btn">نسخ</button>
+          <div id="host-status" class="status-msg">في انتظار اللاعبين…</div>
+        </div>
+      </div>
+
+      <!-- Join -->
+      <div id="mode-join" class="mode-panel hidden">
+        <input id="join-code-input" type="text" maxlength="8" placeholder="أدخل كود الغرفة" autocomplete="off"/>
+        <button id="join-btn" class="main-btn">انضمام</button>
+        <div id="join-status" class="status-msg"></div>
+      </div>
     </div>
   </div>
 
@@ -47,10 +80,12 @@
       <h1>انتهت اللعبة</h1>
       <p>أعلى رقم: <span id="final-best">2</span><br/>
          النقاط: <span id="final-score">0</span></p>
-      <button id="restart-btn">إعادة اللعب</button>
+      <button id="restart-btn" class="main-btn">إعادة اللعب</button>
     </div>
   </div>
 
+  <!-- PeerJS من CDN -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="game.js"></script>
 </body>
 </html>
