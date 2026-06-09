@@ -17,6 +17,7 @@
     SEG_GAP: 1.18, SPEED: 8.5, TURN_RATE: 6.8,  // >1 = فجوة صغيرة بين المكعبات (خلف بعضها لا فوقها)
 
     SPEEDCUBE_MULT: 2.0, SPEEDCUBE_TIME: 3.0, RADAR_TIME: 8.0,
+    MAGNET_TIME: 7.0, MAGNET_RANGE: 13, MAGNET_PULL: 17,
     BOOST_MULT: 1.5, BOOST_DRAIN: 0.25, BOOST_REFILL: 0.10,
     STAMINA_DELAY: 0.4,    // تأخير قبل إعادة الملء بعد النفاد
     STAMINA_RECOVER: 0.35, // يجب بلوغ هذا القدر قبل السماح بالاندفاع ثانيةً
@@ -38,8 +39,9 @@
     double: { color: "#37d67a", label: "×2", glow: "#37d67a" },
     half:   { color: "#ff5d73", label: "÷2", glow: "#ff5d73" },
     radar:  { color: "#2ee6a6", label: "📡", glow: "#2ee6a6" },
+    magnet: { color: "#b06bff", label: "🧲", glow: "#b06bff" },
   };
-  const POWERUP_WEIGHTS = [{ t: "speed", w: 42 }, { t: "double", w: 26 }, { t: "half", w: 18 }, { t: "radar", w: 14 }];
+  const POWERUP_WEIGHTS = [{ t: "speed", w: 38 }, { t: "double", w: 24 }, { t: "half", w: 16 }, { t: "radar", w: 12 }, { t: "magnet", w: 12 }];
 
   const MAP_PATTERNS = ["square", "circle", "triangle", "maze"];
   const MEDALS = [
@@ -425,7 +427,7 @@
   // =====================================================================
   const snake = {
     x: 0, y: 0, angle: 0, values: [], path: [],
-    speedTimer: 0, stamina: 1, boosting: false, exhausted: false, staminaDelay: 0, dangerTimer: 0, headDangerTimer: 0, charges: 0, radarTimer: 0,
+    speedTimer: 0, stamina: 1, boosting: false, exhausted: false, staminaDelay: 0, dangerTimer: 0, headDangerTimer: 0, charges: 0, radarTimer: 0, magnetTimer: 0,
   };
   let playerName = "أنت";
 
@@ -434,18 +436,18 @@
     snake.values = CONFIG.START_SNAKE.slice().sort((a, b) => b - a);
     snake.path = [{ x: 0, y: 0 }];
     snake.speedTimer = 0; snake.stamina = 1; snake.boosting = false; snake.exhausted = false; snake.staminaDelay = 0;
-    snake.dangerTimer = 0; snake.headDangerTimer = 0; snake.charges = 0; snake.radarTimer = 0;
+    snake.dangerTimer = 0; snake.headDangerTimer = 0; snake.charges = 0; snake.radarTimer = 0; snake.magnetTimer = 0;
   }
-  function segmentDistances() {
+  // دوال عامّة تعمل لأي ثعبان (لاعب أو بوت)
+  function segDistOf(values) {
     const d = [0];
-    for (let i = 1; i < snake.values.length; i++) {
-      const s1 = sizeForValue(snake.values[i - 1]), s2 = sizeForValue(snake.values[i]);
+    for (let i = 1; i < values.length; i++) {
+      const s1 = sizeForValue(values[i - 1]), s2 = sizeForValue(values[i]);
       d.push(d[i - 1] + ((s1 + s2) / 2) * CONFIG.SEG_GAP);
     }
     return d;
   }
-  function pointAtDistance(d) {
-    const p = snake.path;
+  function pointAtOf(p, d) {
     if (d <= 0 || p.length < 2) return { x: p[0].x, y: p[0].y };
     let acc = 0;
     for (let i = 1; i < p.length; i++) {
@@ -456,12 +458,15 @@
     }
     const last = p[p.length - 1]; return { x: last.x, y: last.y };
   }
-  function bodyPositions() {
-    return segmentDistances().map((d, i) => {
-      const pt = pointAtDistance(d);
-      return { x: pt.x, y: pt.y, value: snake.values[i], size: sizeForValue(snake.values[i]) };
+  function bodyOf(s) {
+    return segDistOf(s.values).map((d, i) => {
+      const pt = pointAtOf(s.path, d);
+      return { x: pt.x, y: pt.y, value: s.values[i], size: sizeForValue(s.values[i]) };
     });
   }
+  const segmentDistances = () => segDistOf(snake.values);
+  const pointAtDistance = (d) => pointAtOf(snake.path, d);
+  const bodyPositions = () => bodyOf(snake);
   const headValue = () => snake.values[0];
   const score = () => snake.values.reduce((s, v) => s + v, 0);
 
@@ -534,7 +539,7 @@
     return { id: nextItemId++, x: p.x, y: p.y, value: v, size: sizeForValue(v), vx: moving ? Math.cos(a) * 2.2 : 0, vy: moving ? Math.sin(a) * 2.2 : 0 };
   }
   function looseFood(x, y, v) {
-    return { id: nextItemId++, x, y, value: Math.max(2, v), size: sizeForValue(Math.max(2, v)), vx: 0, vy: 0, noEat: now + 1.2 };
+    return { id: nextItemId++, x, y, value: Math.max(2, v), size: sizeForValue(Math.max(2, v)), vx: 0, vy: 0, noEat: now + 1.2, loose: true };
   }
   function spawnPowerup() {
     const p = freePos(2), t = weighted(POWERUP_WEIGHTS, "t");
@@ -622,6 +627,7 @@
   function applyPowerup(type) {
     if (type === "speed") snake.speedTimer = CONFIG.SPEEDCUBE_TIME;
     else if (type === "radar") snake.radarTimer = CONFIG.RADAR_TIME;
+    else if (type === "magnet") snake.magnetTimer = CONFIG.MAGNET_TIME;
     else if (type === "double") { snake.values = snake.values.map((v) => v * 2); }
     else if (type === "half") {
       snake.values = snake.values.map((v) => v / 2).filter((v) => v >= 2);
@@ -640,8 +646,10 @@
   }
   // إسقاط مكعب ساكن: المضيف يضيفه مباشرة، العميل يطلب من المضيف
   function dropLoose(x, y, v) {
-    if (authority()) { foods.push(looseFood(x, y, v)); }
-    else netSend({ t: "drop", x, y, v });
+    if (authority()) {
+      if (foods.length >= 240) { const i = foods.findIndex((f) => f.loose); foods.splice(i >= 0 ? i : 0, 1); } // حدّ أقصى يمنع التراكم والتجمّد
+      foods.push(looseFood(x, y, v));
+    } else netSend({ t: "drop", x, y, v });
   }
 
   // المراحل: تتقدّم فقط عبر نظام الميداليات (لا علاقة لأرقام المكعبات)
@@ -703,26 +711,33 @@
       spawnBurst(c.x, c.y, col, 22); spawnRing(c.x, c.y, col);
     }
   }
-  // أثر السرعة: خطوط انسيابية متوهّجة + شرارات من خلف الذيل (لا توهّج فوق المكعبات)
-  function spawnBoostTrail() {
-    const col = snake.speedTimer > 0 ? "#ffb020" : "#19d3ff";
-    const body = bodyPositions();
-    const tail = body[body.length - 1] || { x: snake.x, y: snake.y };
-    const bx = -Math.cos(snake.angle), by = -Math.sin(snake.angle); // اتجاه الخلف
+  // أثر السرعة: خطوط انسيابية متوهّجة + شرارات من خلف الذيل (لأي ثعبان)
+  function spawnTrailAt(tx, ty, angle, speedCube) {
+    const col = speedCube ? "#ffb020" : "#19d3ff";
+    const bx = -Math.cos(angle), by = -Math.sin(angle);
     for (let i = 0; i < 3; i++) {
       const spread = rand(-0.45, 0.45);
-      particles.push({
-        x: tail.x - by * spread, y: tail.y + bx * spread,
-        vx: bx * rand(6, 10) + rand(-1, 1), vy: by * rand(6, 10) + rand(-1, 1),
-        life: rand(0.35, 0.6), max: 0.6, color: col, size: rand(2.5, 5), streak: true, glow: col, low: true,
-      });
+      particles.push({ x: tx - by * spread, y: ty + bx * spread, vx: bx * rand(6, 10) + rand(-1, 1), vy: by * rand(6, 10) + rand(-1, 1), life: rand(0.35, 0.6), max: 0.6, color: col, size: rand(2.5, 5), streak: true, glow: col, low: true });
     }
-    if (Math.random() < 0.35) // شرارة بيضاء لامعة
-      particles.push({ x: tail.x, y: tail.y, vx: bx * rand(4, 7), vy: by * rand(4, 7), life: 0.3, max: 0.3, color: "#ffffff", size: rand(2, 3.4), streak: true, glow: col, low: true });
+    if (Math.random() < 0.35) particles.push({ x: tx, y: ty, vx: bx * rand(4, 7), vy: by * rand(4, 7), life: 0.3, max: 0.3, color: "#ffffff", size: rand(2, 3.4), streak: true, glow: col, low: true });
   }
+  const tailOf = (s) => { const b = bodyOf(s); return b[b.length - 1] || { x: s.x, y: s.y }; };
+  function spawnBoostTrail() { const t = tailOf(snake); spawnTrailAt(t.x, t.y, snake.angle, snake.speedTimer > 0); }
   function spawnEatFx(x, y) { spawnBurst(x, y, "#bfe9ff", 6); }
+  // تشظٍّ عند الموت: قطع أصغر تتطاير ثم تختفي دفعةً واحدة (تكسّر ومات)
+  let debris = [];
+  function spawnDebris(x, y, value) {
+    for (let i = 0; i < 4; i++) {
+      const a = rand(0, Math.PI * 2), sp = rand(7, 16);
+      debris.push({ x, y, value, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.5, sz: rand(0.38, 0.6) });
+    }
+  }
+  function updateDebris(dt) {
+    for (let i = debris.length - 1; i >= 0; i--) { const d = debris[i]; d.life -= dt; if (d.life <= 0) { debris.splice(i, 1); continue; } d.x += d.vx * dt; d.y += d.vy * dt; d.vx *= 0.86; d.vy *= 0.86; }
+  }
+  function drawDebris() { for (const d of debris) drawCube(d.x, d.y, sizeForValue(d.value) * d.sz, d.value); } // بلا تلاشٍ — تختفي فجأة
   function spawnDeathFx() {
-    for (const s of bodyPositions()) { spawnBurst(s.x, s.y, colorForValue(s.value), 22); spawnRing(s.x, s.y, colorForValue(s.value)); }
+    for (const s of bodyPositions()) { spawnBurst(s.x, s.y, colorForValue(s.value), 16); spawnDebris(s.x, s.y, s.value); } // يتكسّر ويتطاير ثم يختفي
     flashCol = "#FF3030"; flash = 0.45; shake = 0.55;
   }
   function updateParticles(dt) {
@@ -751,20 +766,29 @@
     }
     ctx.restore();
   }
-  // نفّاثة توهّج خلف الذيل (تُرسم تحت المكعبات)
-  function drawBoostJet() {
-    const body = bodyPositions();
-    const tail = body[body.length - 1] || { x: snake.x, y: snake.y };
-    const bx = -Math.cos(snake.angle), by = -Math.sin(snake.angle);
-    const c = project(tail.x + bx * 1.0, tail.y + by * 1.0);
-    const col = snake.speedTimer > 0 ? "255,176,32" : "25,211,255";
-    const down = sizeForValue(headValue()) * CONFIG.SCALE * CONFIG.CUBE_H * 0.7; // أسفل المكعب
-    const cy = c.y + down;
-    const rr = (sizeForValue(headValue()) * CONFIG.SCALE) * (0.85 + 0.18 * Math.sin(now * 22));
+  // نفّاثة توهّج خلف الذيل (تُرسم تحت المكعبات) لأي ثعبان
+  function drawJetAt(tx, ty, angle, sizeW, speedCube) {
+    const bx = -Math.cos(angle), by = -Math.sin(angle);
+    const c = project(tx + bx * 1.0, ty + by * 1.0);
+    const col = speedCube ? "255,176,32" : "25,211,255";
+    const cy = c.y + sizeW * CONFIG.SCALE * CONFIG.CUBE_H * 0.7;
+    const rr = sizeW * CONFIG.SCALE * (0.85 + 0.18 * Math.sin(now * 22));
     ctx.save();
     const g = ctx.createRadialGradient(c.x, cy, 2, c.x, cy, rr);
     g.addColorStop(0, `rgba(${col},0.55)`); g.addColorStop(0.5, `rgba(${col},0.22)`); g.addColorStop(1, `rgba(${col},0)`);
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, cy, rr, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+  function drawBoostJet() { const t = tailOf(snake); drawJetAt(t.x, t.y, snake.angle, sizeForValue(headValue()), snake.speedTimer > 0); }
+  // هالة المغناطيس (حلقة نابضة على الأرض)
+  function drawMagnetRing(wx, wy) {
+    const pulse = 0.5 + 0.5 * Math.sin(now * 5), rW = CONFIG.MAGNET_RANGE * (0.62 + 0.38 * pulse);
+    ctx.save();
+    ctx.strokeStyle = `rgba(176,107,255,${0.22 + 0.22 * pulse})`; ctx.lineWidth = 2.2;
+    ctx.shadowColor = "rgba(176,107,255,0.6)"; ctx.shadowBlur = 8;
+    ctx.beginPath();
+    for (let i = 0; i <= 40; i++) { const a = (i / 40) * Math.PI * 2, pr = project(wx + Math.cos(a) * rW, wy + Math.sin(a) * rW); i ? ctx.lineTo(pr.x, pr.y) : ctx.moveTo(pr.x, pr.y); }
+    ctx.closePath(); ctx.stroke();
     ctx.restore();
   }
 
@@ -855,6 +879,7 @@
       case "KeyQ": usePower("double"); break;
       case "KeyF": usePower("speed"); break;
       case "KeyR": usePower("radar"); break;
+      case "KeyM": usePower("magnet"); break;
       case "Digit1": case "Numpad1": emojiByIndex(0); break;
       case "Digit2": case "Numpad2": emojiByIndex(1); break;
       case "Digit3": case "Numpad3": emojiByIndex(2); break;
@@ -912,7 +937,7 @@
     if (mode !== "host") hideRoomCodeHud(); // الرمز يظهر للمضيف الخاص فقط
     gameLevel = 1; mapRotation = 0;
     medal.level = 0; medal.leaderId = null; medal.reign = 0; medal.leaderName = "";
-    particles = []; floatEmojis = []; rings = []; flash = 0; playTime = 0; remotes.clear();
+    particles = []; floatEmojis = []; rings = []; flash = 0; debris = []; playTime = 0; remotes.clear(); resetBots();
     resetSnake();
     if (online) { // موضع انطلاق عشوائي لتفادي التراكب
       const a = rand(0, Math.PI * 2), d = rand(0, CONFIG.WORLD * 0.5);
@@ -942,7 +967,7 @@
     if (deathBest > highScore) { highScore = deathBest; try { localStorage.setItem("snake2048_high", String(highScore)); } catch (e) {} }
     if (online) netSend({ t: "dead" });
     spawnDeathFx();
-    state = "dying"; deathTimer = 0.9; // تظهر شاشة الخسارة بعد انتهاء الأنميشن
+    state = "dying"; deathTimer = 0.62; // القطع تتطاير ثم تختفي فجأة ثم تظهر شاشة الخسارة
     document.getElementById("chat-bar").classList.add("hidden");
     document.body.classList.remove("in-game");
     syncPowers();
@@ -966,9 +991,11 @@
   }
 
   // المتصدّر = صاحب أعلى نقاط بين كل اللاعبين
+  const botScore = (b) => b.values.reduce((s, v) => s + v, 0);
   function computeLeader() {
     let best = { id: myId, name: playerName, score: score() };
     if (online) for (const r of remotes.values()) if ((r.score || 0) > best.score) best = { id: r.id, name: r.name, score: r.score || 0 };
+    for (const b of bots.values()) { const s = botScore(b); if (s > best.score) best = { id: b.id, name: b.name, score: s }; }
     return best;
   }
   // الميداليات: من يبقى 5 دقائق متواصلة في الصدارة يحصل على ميدالية وتتغيّر الخريطة
@@ -1044,6 +1071,7 @@
     { id: "double", icon: "×2", key: "Q", run: () => { snake.values = snake.values.map((v) => v * 2); spawnBurst(snake.x, snake.y, "#37d67a", 18); } },
     { id: "speed",  icon: "⚡", key: "F", run: () => { snake.speedTimer = CONFIG.SPEEDCUBE_TIME; } },
     { id: "radar",  icon: "📡", key: "R", run: () => { snake.radarTimer = CONFIG.RADAR_TIME; } },
+    { id: "magnet", icon: "🧲", key: "M", run: () => { snake.magnetTimer = CONFIG.MAGNET_TIME; } },
     // أضف أي ميزة مستقبلية هنا وتظهر له تلقائياً
   ];
   function usePower(id) { if (state !== "playing" || !isBinAref()) return; const a = ABILITIES.find((x) => x.id === id); if (a) a.run(); }
@@ -1084,6 +1112,10 @@
     }
     if (snake.speedTimer > 0) snake.speedTimer = Math.max(0, snake.speedTimer - dt);
     if (snake.radarTimer > 0) snake.radarTimer = Math.max(0, snake.radarTimer - dt);
+    if (snake.magnetTimer > 0) {
+      snake.magnetTimer = Math.max(0, snake.magnetTimer - dt);
+      for (const f of foods) { const dx = snake.x - f.x, dy = snake.y - f.y, d = Math.hypot(dx, dy); if (d < CONFIG.MAGNET_RANGE && d > 0.1) { const pull = Math.min(CONFIG.MAGNET_PULL * dt, d); f.x += dx / d * pull; f.y += dy / d * pull; } }
+    }
     if (authority()) updateDangerProjectiles(dt); // المضيف يحرّك مناطق الخطر المتقدّمة
 
     // توجيه: لوحة المفاتيح > عصا اللمس > الماوس
@@ -1175,7 +1207,8 @@
       }
     }
 
-    if (online) resolveCombat(dt);
+    if (authority()) manageBots(dt); // محاكاة البوتات (المضيف/الفردي)
+    if (online || bots.size) resolveCombat(dt);
 
     // بثّ حالتي + (للمضيف) حالة العالم
     if (online) {
@@ -1183,7 +1216,7 @@
       if (lastNetSend >= 0.05) { lastNetSend = 0; netTick(); }
     }
 
-    updateParticles(dt); updateEmojis(dt); updateRings(dt);
+    updateParticles(dt); updateEmojis(dt); updateRings(dt); updateDebris(dt);
     updateCamera(snake.x, snake.y); updateHUD();
   }
 
@@ -1192,44 +1225,47 @@
   // =====================================================================
   function resolveCombat(dt) {
     const hv = headValue(), hSize = sizeForValue(hv);
-    for (const r of remotes.values()) {
-      if (r.biteCD > 0) r.biteCD -= dt;
+    const opps = [];
+    for (const r of remotes.values()) if (r.body && r.body.length) opps.push(r);
+    for (const bot of bots.values()) opps.push({ id: bot.id, x: bot.x, y: bot.y, head: bot.values[0], boosting: bot.boost, body: bodyOf(bot).map((s) => ({ x: s.x, y: s.y, v: s.value })), _bot: bot });
+    for (const r of opps) {
+      const cd = r._bot ? "_pbiteCD" : "biteCD", obj = r._bot || r;
+      obj[cd] = Math.max(0, (obj[cd] || 0) - dt);
       if (!r.body || !r.body.length) continue;
       const rHeadV = r.head || (r.body[0] && r.body[0].v) || 2;
       const rHeadS = sizeForValue(rHeadV);
       const dHead = Math.hypot(r.x - snake.x, r.y - snake.y);
-      // رأس برأس
       if (dHead < (hSize + rHeadS) * 0.5) {
-        if (hv > rHeadV) { biteRemote(r, 0, rHeadV); continue; }        // الأكبر يأكل الأصغر
-        else if (hv === rHeadV) {                                       // تصادم: دفع (السرعة ترجّح)
+        if (hv > rHeadV) { biteOpp(r, 0, rHeadV); continue; }
+        else if (hv === rHeadV) {
           const nx = (snake.x - r.x) / (dHead || 1), ny = (snake.y - r.y) / (dHead || 1);
           const push = 0.9 * (r.boosting ? 1.3 : 1) * (snake.boosting ? 0.4 : 1);
           snake.x += nx * push; snake.y += ny * push; continue;
-        } else {                                                        // رأسي أصغر: الطرف الآخر سيأكلني
-          const nx = (snake.x - r.x) / (dHead || 1), ny = (snake.y - r.y) / (dHead || 1);
-          snake.x += nx * 0.5; snake.y += ny * 0.5;
-        }
+        } else { const nx = (snake.x - r.x) / (dHead || 1), ny = (snake.y - r.y) / (dHead || 1); snake.x += nx * 0.5; snake.y += ny * 0.5; }
       }
-      // عضّ الجسم: فقط مكعب أصغر من رأسي (المساوي مملوك = يُعبَر)
       for (let k = 1; k < r.body.length; k++) {
         const b = r.body[k];
-        if (b.v < hv && Math.hypot(b.x - snake.x, b.y - snake.y) < (hSize + sizeForValue(b.v)) * 0.5) {
-          biteRemote(r, k, b.v); break;
-        }
+        if (b.v < hv && Math.hypot(b.x - snake.x, b.y - snake.y) < (hSize + sizeForValue(b.v)) * 0.5) { biteOpp(r, k, b.v); break; }
       }
     }
   }
-  // عضّ مكعب الخصم رقم k: آكله أنا، وما بعده يسقط طعاماً (يطبّقه الخصم)
-  function biteRemote(r, k, v) {
-    if (r.biteCD > 0) return;
-    r.biteCD = 0.4;
-    eatValue(v); spawnEatFx(snake.x, snake.y);
-    netSend({ t: "cut", target: r.id, index: k });
+  // عضّ خصم: بوت مباشرةً، أو لاعب عبر الشبكة
+  function biteOpp(r, k, v) {
+    if (r._bot) {
+      if (r._bot._pbiteCD > 0) return;
+      r._bot._pbiteCD = 0.4; eatValue(v); spawnEatFx(snake.x, snake.y); applyCutToBot(r._bot, k);
+    } else {
+      if (r.biteCD > 0) return;
+      r.biteCD = 0.4; eatValue(v); spawnEatFx(snake.x, snake.y); netSend({ t: "cut", target: r.id, index: k });
+    }
   }
 
   // وصلني عضّ: المهاجم أكل المكعب index، وما بعده (index+1..) يسقط طعاماً، وأحتفظ بـ 0..index-1
   function applyCut(index) {
     if (state !== "playing" && state !== "paused") return;
+    index = Math.floor(index);
+    if (index >= snake.values.length) return; // فهرس قديم — تجاهل (يمنع NaN)
+    if (index <= 0) { gameOver(); return; } // أُكل الرأس → خسارة فوراً
     const body = bodyPositions();
     const dropped = snake.values.slice(index + 1);
     for (let j = 0; j < dropped.length; j++) {
@@ -1237,9 +1273,170 @@
       dropLoose(pos.x, pos.y, dropped[j]);
       spawnBurst(pos.x, pos.y, "#ff5d73", 8);
     }
-    snake.values.length = Math.max(0, index); // المكعب index أكله المهاجم
-    if (snake.values.length === 0) { gameOver(); return; } // أُكل الرأس → خسارة
+    snake.values.length = index; // نحتفظ بـ 0..index-1
+    if (snake.values.length === 0) { gameOver(); return; }
   }
+
+  // =====================================================================
+  // البوتات (ثعابين AI)
+  // =====================================================================
+  const BOT_NAMES = ["Khaizen", "Neffex", "Aria", "Kenji", "Yuki", "Hassan", "Layla", "Diego", "Sofia", "Pierre", "Olga", "Viktor", "Mei", "Jin", "Ravi", "Priya", "Omar", "Nadia", "Lukas", "Emma", "Chen", "Akira", "Fatima", "Carlos", "Ingrid", "Tariq", "Sakura", "Minho", "Ivan", "Zara"];
+  const bots = new Map();
+  let botSeq = 0, aiEnabled = true, botTarget = 24, botSpawnCD = 0, playerReign = 0, nextChallenge = 180;
+  try { aiEnabled = localStorage.getItem("snake2048_ai") !== "0"; } catch (e) {}
+
+  function usedNames() { const s = new Set([playerName]); for (const b of bots.values()) s.add(b.name); for (const r of remotes.values()) s.add(r.name); return s; }
+  function pickBotName() { const used = usedNames(), avail = BOT_NAMES.filter((n) => !used.has(n)); return avail.length ? avail[(Math.random() * avail.length) | 0] : "Bot" + botSeq; }
+
+  // مستوى الصعوبة الزمني: 0 سهل … 5 كابوس (كل 5 دقائق)
+  const aiTier = () => clamp(Math.floor(playTime / 300), 0, 5);
+  function makeBot(opts) {
+    opts = opts || {};
+    const strength = opts.strength != null ? opts.strength : 0.4;
+    // الصعوبة (الذكاء) ترتفع مع الوقت؛ القدرات تبقى كاللاعب
+    const base = opts.diff != null ? opts.diff : (0.08 + strength * 0.35);
+    const diff = clamp(base + aiTier() * 0.15, 0.05, 0.99);
+    let top = opts.top;
+    if (!top) { const maxExp = 1 + Math.floor(strength * (3 + gameLevel)); top = Math.pow(2, 1 + Math.floor(Math.random() * maxExp)); }
+    top = Math.max(2, Math.pow(2, Math.round(log2(top))));
+    const values = [top]; let v = top;
+    while (v > 2 && values.length < 5) { v /= 2; values.push(v); }
+    const p = freePos(2), id = "bot" + (botSeq++);
+    return { id, name: pickBotName(), color: colorForId(id), x: p.x, y: p.y, angle: rand(0, Math.PI * 2), values, path: [{ x: p.x, y: p.y }], diff, react: lerp(0.6, 0.1, diff), aiT: rand(0, 0.3), boost: false, stamina: 1, speedTimer: 0, radarTimer: 0, magnetTimer: 0, dangerTimer: 0, headDangerTimer: 0, desiredAngle: rand(0, Math.PI * 2), _pbiteCD: 0, _obiteCD: 0, alive: true, emojiEm: null, emojiLife: 0 };
+  }
+  function addBot(opts) { if (bots.size >= 30) return; const b = makeBot(opts); bots.set(b.id, b); }
+  function killBot(bot) { if (!bot.alive) return; bot.alive = false; for (const s of bodyOf(bot)) { spawnBurst(s.x, s.y, colorForValue(s.value), 8); dropLoose(s.x + rand(-1, 1), s.y + rand(-1, 1), s.value); } bots.delete(bot.id); }
+  function botEat(bot, val) {
+    bot.values.push(val); bot.values.sort((a, b) => b - a);
+    let m = true; while (m) { m = false; for (let i = 0; i < bot.values.length - 1; i++) if (bot.values[i] === bot.values[i + 1]) { bot.values[i] *= 2; bot.values.splice(i + 1, 1); bot.values.sort((a, b) => b - a); m = true; break; } }
+  }
+  function applyBotPowerup(bot, type) {
+    if (type === "speed") bot.speedTimer = CONFIG.SPEEDCUBE_TIME;
+    else if (type === "radar") bot.radarTimer = CONFIG.RADAR_TIME;
+    else if (type === "magnet") bot.magnetTimer = CONFIG.MAGNET_TIME;
+    else if (type === "double") bot.values = bot.values.map((v) => v * 2);
+    else if (type === "half") { bot.values = bot.values.map((v) => v / 2).filter((v) => v >= 2); bot.values.sort((a, b) => b - a); if (!bot.values.length) killBot(bot); }
+  }
+  function severBotTail(bot) { if (bot.values.length <= 1) return; const v = bot.values.pop(); const d = segDistOf(bot.values); const pt = pointAtOf(bot.path, d[d.length - 1] || 0); dropLoose(pt.x, pt.y, v); }
+  function applyCutToBot(bot, index) {
+    if (!bot.alive) return;
+    index = Math.floor(index);
+    if (index >= bot.values.length) return; // فهرس قديم
+    if (index <= 0) { killBot(bot); return; }
+    const body = bodyOf(bot), dropped = bot.values.slice(index + 1);
+    for (let j = 0; j < dropped.length; j++) { const pos = body[index + 1 + j] || { x: bot.x, y: bot.y }; dropLoose(pos.x, pos.y, dropped[j]); }
+    bot.values.length = index;
+    if (!bot.values.length) killBot(bot);
+  }
+  function pushOutObstaclesBot(bot) {
+    for (const o of obstacles) {
+      const m = sizeForValue(bot.values[0]) * 0.5;
+      if (o.kind === "cyl" || o.kind === "hex") { const rad = Math.min(o.hw, o.hh) * 0.72 + m, dx = bot.x - o.x, dy = bot.y - o.y, d = Math.hypot(dx, dy); if (d < rad && d > 1e-4) { const push = rad - d; bot.x += dx / d * push; bot.y += dy / d * push; } }
+      else if (bot.x > o.x - o.hw - m && bot.x < o.x + o.hw + m && bot.y > o.y - o.hh - m && bot.y < o.y + o.hh + m) { const dxl = (o.x - o.hw - m) - bot.x, dxr = (o.x + o.hw + m) - bot.x, dyl = (o.y - o.hh - m) - bot.y, dyr = (o.y + o.hh + m) - bot.y, px = Math.abs(dxl) < Math.abs(dxr) ? dxl : dxr, py = Math.abs(dyl) < Math.abs(dyr) ? dyl : dyr; if (Math.abs(px) < Math.abs(py)) bot.x += px; else bot.y += py; }
+    }
+  }
+  // قرار البوت
+  function decideBot(bot) {
+    const hv = bot.values[0], hx = bot.x, hy = bot.y, smart = bot.diff;
+    // مجال الرؤية = كاللاعب؛ لا يرى أبعد إلا إن أكل رادار
+    const VISION = 34, eyeR = bot.radarTimer > 0 ? CONFIG.WORLD * 2.2 : VISION;
+    let ax = 0, ay = 0, nThreat = null, tD = 1e9, nPrey = null, pD = 1e9;
+    const ents = [];
+    if (state === "playing") ents.push({ id: myId, x: snake.x, y: snake.y, head: headValue() });
+    for (const o of bots.values()) if (o.id !== bot.id && o.alive) ents.push({ id: o.id, x: o.x, y: o.y, head: o.values[0] });
+    for (const r of remotes.values()) if (r.body) ents.push({ id: r.id, x: r.x, y: r.y, head: r.head });
+    for (const e of ents) { const d = Math.hypot(e.x - hx, e.y - hy); if (d > eyeR) continue; if (e.head > hv) { if (d < tD) { tD = d; nThreat = e; } } else if (e.head < hv) { if (d < pD) { pD = d; nPrey = e; } } }
+    bot.boost = false;
+    if (nThreat && tD < 22 * (0.6 + smart)) { const a = Math.atan2(hy - nThreat.y, hx - nThreat.x); ax += Math.cos(a) * 2.6; ay += Math.sin(a) * 2.6; if (tD < 9 && bot.stamina > 0.3) bot.boost = true; } // اندفاع للهروب
+    if (nPrey && pD < 26 && Math.random() < 0.5 + smart * 0.5) { const a = Math.atan2(nPrey.y - hy, nPrey.x - hx); ax += Math.cos(a) * (1 + smart); ay += Math.sin(a) * (1 + smart); if (pD < 11 && bot.stamina > 0.3) bot.boost = true; }
+    let bf = null, bd = 1e9;
+    for (const f of foods) { if (f.value > hv || (f.noEat && now < f.noEat)) continue; const d = Math.hypot(f.x - hx, f.y - hy); if (d > VISION) continue; if (d < bd) { bd = d; bf = f; } }
+    // الأذكياء يقصدون مكعبات القوى القريبة المرئية
+    if (smart > 0.4) for (const p of powerups) { const d = Math.hypot(p.x - hx, p.y - hy); if (d < VISION * 0.7 && (!bf || d < bd * 0.8)) { bf = p; bd = d; } }
+    if (bf) { const a = Math.atan2(bf.y - hy, bf.x - hx); ax += Math.cos(a) * (nThreat && tD < 18 ? 0.4 : 1.4); ay += Math.sin(a) * (nThreat && tD < 18 ? 0.4 : 1.4); }
+    const edgeD = CONFIG.WORLD - Math.max(Math.abs(hx), Math.abs(hy));
+    if (edgeD < 18) { const a = Math.atan2(-hy, -hx), w = 3.5 * (1 - edgeD / 18); ax += Math.cos(a) * w; ay += Math.sin(a) * w; }
+    for (const dz of dangers) { const d = Math.hypot(dz.x - hx, dz.y - hy), rr = dz.r + 9; if (d < rr) { const a = Math.atan2(hy - dz.y, hx - dz.x), w = 2.5 * (1 - d / rr); ax += Math.cos(a) * w; ay += Math.sin(a) * w; } }
+    if (smart > 0.3) for (const o of obstacles) { const d = Math.hypot(o.x - hx, o.y - hy), rr = Math.max(o.hw, o.hh) + 6; if (d < rr) { const a = Math.atan2(hy - o.y, hx - o.x), w = 1.8 * (1 - d / rr); ax += Math.cos(a) * w; ay += Math.sin(a) * w; } }
+    bot.desiredAngle = (ax || ay) ? Math.atan2(ay, ax) : bot.angle + rand(-0.3, 0.3);
+    bot.desiredAngle += rand(-1, 1) * (1 - smart) * 0.45; // عدم دقّة للضعفاء
+  }
+  function stepBot(bot, dt) {
+    bot.aiT -= dt; if (bot.aiT <= 0) { bot.aiT = bot.react; decideBot(bot); }
+    bot.angle = angleLerp(bot.angle, bot.desiredAngle, CONFIG.TURN_RATE * dt);
+    if (bot.boost && bot.stamina > 0.02) bot.stamina = Math.max(0, bot.stamina - CONFIG.BOOST_DRAIN * dt); else bot.stamina = Math.min(1, bot.stamina + CONFIG.BOOST_REFILL * dt);
+    if (bot.speedTimer > 0) bot.speedTimer = Math.max(0, bot.speedTimer - dt);
+    if (bot.radarTimer > 0) bot.radarTimer = Math.max(0, bot.radarTimer - dt);
+    if (bot.magnetTimer > 0) { bot.magnetTimer = Math.max(0, bot.magnetTimer - dt); for (const f of foods) { const dx = bot.x - f.x, dy = bot.y - f.y, d = Math.hypot(dx, dy); if (d < CONFIG.MAGNET_RANGE && d > 0.1) { const pull = Math.min(CONFIG.MAGNET_PULL * dt, d); f.x += dx / d * pull; f.y += dy / d * pull; } } }
+    const boosting = bot.boost && bot.stamina > 0.02, sp = CONFIG.SPEED * (bot.speedTimer > 0 ? CONFIG.SPEEDCUBE_MULT : 1) * (boosting ? CONFIG.BOOST_MULT : 1);
+    bot.x += Math.cos(bot.angle) * sp * dt; bot.y += Math.sin(bot.angle) * sp * dt;
+    if (!inBounds(bot.x, bot.y)) { killBot(bot); return; }
+    pushOutObstaclesBot(bot);
+    if (inDanger(bot.x, bot.y)) {
+      if (bot.values.length > 1) { bot.headDangerTimer = 0; bot.dangerTimer += dt; while (bot.dangerTimer >= CONFIG.DANGER_SEVER_INTERVAL && bot.values.length > 1) { bot.dangerTimer -= CONFIG.DANGER_SEVER_INTERVAL; severBotTail(bot); } }
+      else { bot.headDangerTimer += dt; if (bot.headDangerTimer >= 1) { killBot(bot); return; } }
+    } else { bot.dangerTimer = 0; bot.headDangerTimer = 0; }
+    bot.path.unshift({ x: bot.x, y: bot.y });
+    const dists = segDistOf(bot.values), need = dists[dists.length - 1] + 4; let total = 0;
+    for (let i = 1; i < bot.path.length; i++) { total += Math.hypot(bot.path[i].x - bot.path[i - 1].x, bot.path[i].y - bot.path[i - 1].y); if (total > need) { bot.path.length = i + 1; break; } }
+    const hv = bot.values[0], hSize = sizeForValue(hv);
+    for (let i = foods.length - 1; i >= 0; i--) { const f = foods[i]; if (!(f.noEat && now < f.noEat) && f.value <= hv && Math.hypot(f.x - bot.x, f.y - bot.y) < (hSize + f.size) * 0.5) { botEat(bot, f.value); foods[i] = spawnFood(); } }
+    for (let i = powerups.length - 1; i >= 0; i--) { const p = powerups[i]; if (Math.hypot(p.x - bot.x, p.y - bot.y) < (hSize + p.size) * 0.45) { applyBotPowerup(bot, p.type); powerups[i] = spawnPowerup(); if (!bot.alive) return; } }
+    // أثر السرعة على البوت (مثل اللاعب)
+    if (((bot.boost && bot.stamina > 0.02) || bot.speedTimer > 0) && Math.random() < 0.7) { const t = tailOf(bot); spawnTrailAt(t.x, t.y, bot.angle, bot.speedTimer > 0); }
+    if (bot.emojiLife > 0) bot.emojiLife -= dt;
+  }
+  // هجوم البوت على اللاعب/البوتات/الخصوم
+  function botOffense(bot, dt) {
+    if (bot._obiteCD > 0) { bot._obiteCD -= dt; return; }
+    const hv = bot.values[0], hSize = sizeForValue(hv);
+    const targets = [];
+    if (state === "playing") targets.push({ kind: "me", x: snake.x, y: snake.y, head: headValue(), body: bodyPositions() });
+    for (const o of bots.values()) if (o.id !== bot.id && o.alive) targets.push({ kind: "bot", ref: o, x: o.x, y: o.y, head: o.values[0], body: bodyOf(o) });
+    for (const r of remotes.values()) if (r.body) targets.push({ kind: "remote", ref: r, x: r.x, y: r.y, head: r.head, body: r.body });
+    for (const T of targets) {
+      const tHeadS = sizeForValue(T.head), dHead = Math.hypot(T.x - bot.x, T.y - bot.y);
+      if (dHead < (hSize + tHeadS) * 0.5 && hv > T.head) { botBite(bot, T, 0); return; }
+      for (let k = 1; k < T.body.length; k++) { const b = T.body[k], bv = b.value != null ? b.value : b.v; if (bv < hv && Math.hypot(b.x - bot.x, b.y - bot.y) < (hSize + sizeForValue(bv)) * 0.5) { botBite(bot, T, k); return; } }
+    }
+  }
+  function botBite(bot, T, k) {
+    bot._obiteCD = 0.5;
+    const cube = T.body[k], bv = k === 0 ? T.head : (cube.value != null ? cube.value : cube.v);
+    botEat(bot, bv);
+    if (T.kind === "me") applyCut(k);
+    else if (T.kind === "bot") applyCutToBot(T.ref, k);
+    else if (T.kind === "remote") { const c = clientConns.get(T.ref.id); if (c && c.open) { try { c.send({ t: "cut", index: k }); } catch (e) {} } }
+  }
+  // تحدّيات تكيّفية: إن بقي اللاعب متصدّراً تظهر بوتات بقوّته
+  function updateChallengers(dt) {
+    if (online && !isHost) return;
+    const leader = computeLeader();
+    if (leader.id === myId && state === "playing") {
+      playerReign += dt;
+      if (playerReign >= nextChallenge) {
+        const ph = headValue();
+        if (nextChallenge <= 180) { addBot({ top: ph, diff: 0.82 }); addBot({ top: Math.max(2, ph / 2), diff: 0.66 }); nextChallenge = 300; }
+        else { addBot({ top: ph * 2, diff: 0.92 }); nextChallenge += 150; }
+      }
+    } else { playerReign = 0; nextChallenge = 180; }
+  }
+  function manageBots(dt) {
+    if (!aiEnabled) { if (bots.size) bots.clear(); return; }
+    let target;
+    if (online) target = Math.max(0, 20 - (1 + clientConns.size)); else target = botTarget;
+    botSpawnCD -= dt;
+    if (bots.size < target && botSpawnCD <= 0) { addBot({ strength: rand(0.05, 0.55) }); botSpawnCD = 0.3; }
+    updateChallengers(dt);
+    for (const bot of [...bots.values()]) stepBot(bot, dt);
+    for (const bot of [...bots.values()]) if (bot.alive) botOffense(bot, dt);
+  }
+  function resetBots() { bots.clear(); playerReign = 0; nextChallenge = 180; botSpawnCD = 0; botTarget = 20 + Math.floor(Math.random() * 11); }
+  window.toggleAI = function () {
+    aiEnabled = document.getElementById("ai-toggle").checked;
+    try { localStorage.setItem("snake2048_ai", aiEnabled ? "1" : "0"); } catch (e) {}
+    if (!aiEnabled) bots.clear();
+  };
 
   // =====================================================================
   // الرسم
@@ -1296,35 +1493,62 @@
     ctx.restore();
   }
 
+  // ترتيب إيزومتري طوبولوجي: A خلف B إن كان مسقطه كاملاً على الجهة البعيدة في محور
+  function isoBehind(A, B) { return (A.x2 <= B.x1 + 0.02) || (A.y2 <= B.y1 + 0.02); }
+  function sortIso(items) {
+    const n = items.length, before = items.map(() => []);
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+      const A = items[i], B = items[j], aB = isoBehind(A, B), bB = isoBehind(B, A);
+      if (aB && !bB) before[j].push(i);
+      else if (bB && !aB) before[i].push(j);
+      else if (A.depth <= B.depth) before[j].push(i); else before[i].push(j);
+    }
+    const out = [], vis = new Array(n).fill(0);
+    const visit = (i) => { if (vis[i]) return; vis[i] = 1; for (const k of before[i]) if (vis[k] !== 1) visit(k); vis[i] = 2; out.push(items[i]); };
+    for (let i = 0; i < n; i++) visit(i);
+    return out;
+  }
+
   function render() {
     const so = shakeOffset();
     ctx.save(); ctx.translate(so.x, so.y);
     drawGround();
     for (const p of powerups) drawCard(p.x, p.y, p.size, p.type);
     if (state === "playing" && (snake.boosting || snake.speedTimer > 0)) drawBoostJet(); // تحت المكعبات
+    for (const bt of bots.values()) if (bt.boost || bt.speedTimer > 0) { const t = tailOf(bt); drawJetAt(t.x, t.y, bt.angle, sizeForValue(bt.values[0]), bt.speedTimer > 0); }
+    for (const r of remotes.values()) if (r.boosting && r.body && r.body.length) { const t = r.body[r.body.length - 1]; drawJetAt(t.x, t.y, r.angle || 0, sizeForValue(r.head || 2), false); }
+    // هالة المغناطيس
+    if (state === "playing" && snake.magnetTimer > 0) drawMagnetRing(snake.x, snake.y);
+    for (const bt of bots.values()) if (bt.magnetTimer > 0) drawMagnetRing(bt.x, bt.y);
     drawParticles(true); // شعاع السرعة يُرسم تحت المكعبات
     const drawables = [];
-    for (const f of foods) drawables.push({ kind: "food", x: f.x, y: f.y, size: f.size, value: f.value, depth: f.x + f.y });
-    // الحواجز بعمق مركزها — الانتقال يحدث داخل الحاجز، فما أمامه فوقه تماماً وما خلفه تحته تماماً
-    for (const o of obstacles) drawables.push({ kind: "wall", o, depth: o.x + o.y });
-    for (const s of bodyPositions()) drawables.push({ kind: "body", x: s.x, y: s.y, size: s.size, value: s.value, depth: s.x + s.y });
-    // الثعابين البعيدة
-    for (const r of remotes.values()) {
-      if (!r.body) continue;
-      for (const b of r.body) drawables.push({ kind: "body", x: b.x, y: b.y, size: sizeForValue(b.v), value: b.v, depth: b.x + b.y });
+    const pushCube = (kind, x, y, size, value) => {
+      const half = size / 2;
+      drawables.push({ kind, x, y, size, value, depth: x + y, x1: x - half, x2: x + half, y1: y - half, y2: y + half });
+    };
+    for (const f of foods) pushCube("food", f.x, f.y, f.size, f.value);
+    for (const o of obstacles) {
+      const rr = (o.kind === "cyl" || o.kind === "hex") ? Math.min(o.hw, o.hh) * 0.72 : 0;
+      const hw = rr || o.hw, hh = rr || o.hh;
+      drawables.push({ kind: "wall", o, depth: o.x + o.y, x1: o.x - hw, x2: o.x + hw, y1: o.y - hh, y2: o.y + hh });
     }
-    drawables.sort((a, b) => a.depth - b.depth);
-    for (const d of drawables) {
+    if (state === "playing") for (const s of bodyPositions()) pushCube("body", s.x, s.y, s.size, s.value); // يختفي عند التفتّت
+    for (const r of remotes.values()) { if (!r.body) continue; for (const b of r.body) pushCube("body", b.x, b.y, sizeForValue(b.v), b.v); }
+    for (const bt of bots.values()) for (const s of bodyOf(bt)) pushCube("body", s.x, s.y, s.size, s.value);
+    for (const d of sortIso(drawables)) {
       if (d.kind === "wall") drawObstacle(d.o);
       else if (d.kind === "food") drawCube(d.x, d.y, d.size * (1 + 0.05 * Math.sin(now * 3 + d.x)), d.value); // نبض خفيف للطعام
       else drawCube(d.x, d.y, d.size, d.value);
     }
+    drawDebris(); // قطع الموت المتطايرة
     drawParticles(false); // جسيمات الأكل/الدمج فوق المكعبات
     drawRings();
-    // أسماء ورموز الثعابين البعيدة
+    // أسماء الثعابين البعيدة والبوتات
     for (const r of remotes.values()) drawRemoteLabel(r);
+    for (const bt of bots.values()) drawRemoteLabel({ x: bt.x, y: bt.y, head: bt.values[0], name: bt.name, color: bt.color, emojiLife: bt.emojiLife, emojiEm: bt.emojiEm });
     drawArrow(); drawNameLabel(); drawEmojis();
     if (snake.radarTimer > 0) drawRadar();
+    if (snake.magnetTimer > 0) drawEffectTimer("🧲", snake.magnetTimer, "#c79bff", snake.radarTimer > 0 ? 1 : 0);
     drawFlash();
     ctx.restore();
   }
@@ -1363,25 +1587,36 @@
   // الرادار: مؤشّرات على حافة الشاشة نحو أقرب اللاعبين
   function drawRadar() {
     const cx = W / 2, cy = H / 2;
-    const list = [];
-    for (const r of remotes.values()) if (r.x != null) list.push({ r, d: Math.hypot(r.x - snake.x, r.y - snake.y) });
-    list.sort((a, b) => a.d - b.d);
-    const ring = Math.min(W, H) / 2 - 64;
-    for (let i = 0; i < Math.min(6, list.length); i++) {
-      const { r, d } = list[i];
-      const rp = project(r.x, r.y);
-      let dx = rp.x - cx, dy = rp.y - cy; const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
-      const ex = cx + dx * ring, ey = cy + dy * ring, ang = Math.atan2(dy, dx);
-      ctx.save();
-      ctx.translate(ex, ey); ctx.rotate(ang);
-      ctx.shadowColor = "#2ee6a6"; ctx.shadowBlur = 8; ctx.fillStyle = r.color || "#2ee6a6";
-      ctx.beginPath(); ctx.moveTo(13, 0); ctx.lineTo(-7, 8); ctx.lineTo(-7, -8); ctx.closePath(); ctx.fill();
+    const items = [];
+    const add = (x, y, color) => { const rp = project(x, y); items.push({ ang: Math.atan2(rp.y - cy, rp.x - cx), d: Math.hypot(x - snake.x, y - snake.y), color }); };
+    for (const r of remotes.values()) if (r.x != null) add(r.x, r.y, r.color || "#2ee6a6");
+    for (const bt of bots.values()) add(bt.x, bt.y, bt.color);
+    const ring = Math.min(W, H) * 0.22; // أقرب للاعب
+    const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return Math.abs(d); };
+    const arrow = (it, big) => {
+      const ex = cx + Math.cos(it.ang) * ring, ey = cy + Math.sin(it.ang) * ring;
+      const col = big ? "#ff3b3b" : (it.color || "#2ee6a6"), s = big ? 9 : 5.5;
+      ctx.save(); ctx.translate(ex, ey); ctx.rotate(it.ang);
+      ctx.globalAlpha = big ? 1 : 0.6; ctx.shadowColor = col; ctx.shadowBlur = big ? 14 : 5; ctx.fillStyle = col;
+      ctx.beginPath(); ctx.moveTo(s + 7, 0); ctx.lineTo(-s, s); ctx.lineTo(-s, -s); ctx.closePath(); ctx.fill();
       ctx.restore();
-      ctx.font = '700 11px "Segoe UI", Tahoma, sans-serif'; ctx.fillStyle = "#dffff2"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(Math.round(d) + "", ex - dx * 18, ey - dy * 18);
+      if (big) { ctx.font = '800 12px "Segoe UI", Tahoma, sans-serif'; ctx.fillStyle = "#ffd0d0"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(Math.round(it.d) + "", ex - Math.cos(it.ang) * 17, ey - Math.sin(it.ang) * 17); }
+    };
+    if (items.length) {
+      items.sort((a, b) => a.d - b.d);
+      arrow(items[0], true); // أقرب عدو — سهم أحمر بارز
+      const shown = [items[0].ang];
+      let n = 0;
+      for (let i = 1; i < items.length && n < 4; i++) { if (shown.some((a) => angDiff(a, items[i].ang) < 0.4)) continue; arrow(items[i], false); shown.push(items[i].ang); n++; }
     }
-    ctx.fillStyle = "#2ee6a6"; ctx.font = '800 14px "Segoe UI", Tahoma, sans-serif'; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.globalAlpha = 1; ctx.fillStyle = "#2ee6a6"; ctx.font = '800 14px "Segoe UI", Tahoma, sans-serif'; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText("📡 " + Math.ceil(snake.radarTimer) + "s", cx, cy - ring - 18);
+  }
+  // عدّاد تأثير (مثل الرادار) أعلى الرأس
+  function drawEffectTimer(icon, t, color, slot) {
+    const cx = W / 2, cy = H / 2, ring = Math.min(W, H) * 0.22;
+    ctx.fillStyle = color; ctx.font = '800 14px "Segoe UI", Tahoma, sans-serif'; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(icon + " " + Math.ceil(t) + "s", cx, cy - ring - 18 - slot * 22);
   }
   function drawNameLabel() {
     const c = project(snake.x, snake.y);
@@ -1429,6 +1664,7 @@
     document.getElementById("boost-bar-label").textContent = snake.exhausted ? "…" : "⚡";
     const entries = [{ id: myId, name: playerName, head: headValue(), me: true }];
     if (online) for (const r of remotes.values()) entries.push({ id: r.id, name: r.name || "?", head: r.head || 2, me: false });
+    for (const b of bots.values()) entries.push({ id: b.id, name: b.name, head: b.values[0], me: false });
     entries.sort((a, b) => b.head - a.head);
     const n = entries.length, myIdx = entries.findIndex((e) => e.me);
     const row = (e, rank) => {
@@ -1732,7 +1968,7 @@
   }
 
   function backToMenu() {
-    online = false; isHost = false; migrating = false; state = "menu"; remotes.clear(); hostConn = null; clientConns.clear();
+    online = false; isHost = false; migrating = false; state = "menu"; remotes.clear(); bots.clear(); hostConn = null; clientConns.clear();
     hideRoomCodeHud(); document.body.classList.remove("in-game");
     hostLobby = false;
     try { if (peer) peer.destroy(); } catch (_) {}
@@ -1805,6 +2041,7 @@
     const list = [];
     if (state === "playing") list.push(selfEntry()); // المضيف الميت لا يُرسَل
     for (const r of remotes.values()) list.push({ id: r.id, name: r.name, x: r.x, y: r.y, angle: r.angle, head: r.head, boosting: r.boosting, score: r.score, body: r.body });
+    for (const b of bots.values()) list.push({ id: b.id, name: b.name, x: b.x, y: b.y, angle: b.angle, head: b.values[0], boosting: b.boost, score: botScore(b), body: bodyOf(b).map((s) => ({ x: +s.x.toFixed(2), y: +s.y.toFixed(2), v: s.value })) });
     return { t: "snakes", list };
   }
 
@@ -1818,6 +2055,7 @@
       case "drop": foods.push(looseFood(msg.x, msg.y, msg.v)); break;
       case "cut": {
         if (msg.target === myId) applyCut(msg.index);
+        else if (bots.has(msg.target)) applyCutToBot(bots.get(msg.target), msg.index);
         else { const c = clientConns.get(msg.target); if (c && c.open) { try { c.send({ t: "cut", index: msg.index }); } catch (_) {} } }
         break;
       }
@@ -1858,15 +2096,17 @@
   // =====================================================================
   function loop(t) {
     const dt = Math.min((t - lastT) / 1000, 0.05); lastT = t; now += dt;
-    if (state === "playing") update(dt);
-    else {
-      updateParticles(dt); updateEmojis(dt); updateRings(dt);
-      if (state === "dying") { deathTimer -= dt; if (deathTimer <= 0) finalizeOver(); }
-      if (state === "won") fireworksTick(dt); // ألعاب نارية
-      // المضيف يواصل توزيع العالم حتى لو مات ثعبانه حتى لا يتجمّد العملاء
-      if (isHost && online) { lastNetSend += dt; if (lastNetSend >= 0.05) { lastNetSend = 0; hostBroadcast(snakesMsg()); if ((++netItemsCounter) % 4 === 0) hostBroadcast(itemsMsg()); } }
-    }
-    if (state !== "menu") render();
+    try { // درع أمان: خطأ عابر لا يجمّد اللعبة نهائياً
+      if (state === "playing") update(dt);
+      else {
+        updateParticles(dt); updateEmojis(dt); updateRings(dt); updateDebris(dt);
+        if (state === "dying") { deathTimer -= dt; if (deathTimer <= 0) finalizeOver(); }
+        if (state === "won") fireworksTick(dt); // ألعاب نارية
+        // المضيف يواصل توزيع العالم حتى لو مات ثعبانه حتى لا يتجمّد العملاء
+        if (isHost && online) { lastNetSend += dt; if (lastNetSend >= 0.05) { lastNetSend = 0; hostBroadcast(snakesMsg()); if ((++netItemsCounter) % 4 === 0) hostBroadcast(itemsMsg()); } }
+      }
+      if (state !== "menu") render();
+    } catch (e) { console.error(e); }
     requestAnimationFrame(loop);
   }
 
@@ -1913,6 +2153,7 @@
   updateShapeUI();
 
   buildPowers();
+  try { document.getElementById("ai-toggle").checked = aiEnabled; } catch (e) {}
   gameLevel = 1; resetSnake(); initItems(); updateCamera(0, 0);
   document.getElementById("highscore").textContent = fmtNum(highScore);
   requestAnimationFrame((t) => { lastT = t; loop(t); });

@@ -392,6 +392,7 @@ body::after {
 
 /* ===== Toggle (لم يعد مستخدماً لكن نُبقيه آمناً) ===== */
 .toggle-row { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.ai-row { margin-bottom: 14px; }
 .toggle-label { color: var(--text-secondary); font-size: 14px; }
 .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; }
 .toggle-switch input { opacity: 0; width: 0; height: 0; }

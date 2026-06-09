@@ -103,6 +103,14 @@
         </div>
       </div>
 
+      <div class="toggle-row ai-row">
+        <span class="toggle-label">🤖 <span data-i18n="aiEnemies">أعداء AI</span></span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="ai-toggle" onchange="toggleAI()" checked/>
+          <span class="slider"></span>
+        </label>
+      </div>
+
       <!-- وضع منفرد / جماعي (أيقونات) -->
       <div id="mode-switch">
         <button id="btn-solo"  class="switch-btn active" onclick="switchMode('solo')"  data-i18n-title="solo">👤</button>
