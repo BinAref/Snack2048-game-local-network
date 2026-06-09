@@ -13,11 +13,13 @@
   // =====================================================================
   const CONFIG = {
     WORLD: 95, SCALE: 26, ISO_X: 1.0, ISO_Y: 0.5,
-    BASE_SIZE: 1.0, SIZE_GROWTH: 0.12, CUBE_H: 0.62,
+    BASE_SIZE: 1.0, SIZE_GROWTH: 0.045, CUBE_H: 0.62,
     SEG_GAP: 1.18, SPEED: 8.5, TURN_RATE: 6.8,  // >1 = فجوة صغيرة بين المكعبات (خلف بعضها لا فوقها)
 
     SPEEDCUBE_MULT: 2.0, SPEEDCUBE_TIME: 3.0, RADAR_TIME: 8.0,
     BOOST_MULT: 1.5, BOOST_DRAIN: 0.25, BOOST_REFILL: 0.10,
+    STAMINA_DELAY: 0.4,    // تأخير قبل إعادة الملء بعد النفاد
+    STAMINA_RECOVER: 0.35, // يجب بلوغ هذا القدر قبل السماح بالاندفاع ثانيةً
 
     FOOD_COUNT: 95, POWERUP_COUNT: 8,
     MOVING_FOOD_RATIO: 0.18,      // نسبة الطعام المتحرك
@@ -81,27 +83,49 @@
     d = clamp(d, -maxStep, maxStep);
     return a + d;
   }
-  const sizeForValue = (v) => CONFIG.BASE_SIZE * (0.86 + CONFIG.SIZE_GROWTH * (log2(v) - 1));
+  const sizeForValue = (v) => clamp(CONFIG.BASE_SIZE * (0.9 + CONFIG.SIZE_GROWTH * (log2(v) - 1)), 0.85, 2.6);
   // اختصار الأرقام الكبيرة حتى لا تخرج من المكعب (K/M/B/T...)
   function fmtNum(v) {
     if (v < 1000) return "" + v;
-    const units = ["K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No", "De"];
+    const units = ["K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No", "Dc", "UDc", "DDc", "TDc", "QaDc", "QiDc", "SxDc", "SpDc", "OcDc", "NoDc", "Vg", "UVg", "DVg", "TVg", "QaVg", "QiVg", "SxVg", "SpVg", "OcVg", "NoVg", "Tg", "UTg", "DTg", "TTg", "QaTg", "QiTg", "SxTg", "SpTg", "OcTg", "NoTg", "Qd"];
     let n = v, i = -1;
     while (n >= 1000 && i < units.length - 1) { n /= 1000; i++; }
     let s = n < 10 ? n.toFixed(1) : Math.round(n).toString();
     return s.replace(/\.0$/, "") + units[i];
   }
-  const VALUE_COLORS = {
-    2: "#f2c14e", 4: "#f0a868", 8: "#ec7d5a", 16: "#e85d5d", 32: "#d94f9a",
-    64: "#9b5de5", 128: "#5d8ce8", 256: "#4fb0e8", 512: "#3fc7c0",
-    1024: "#46c97a", 2048: "#8ad94f", 4096: "#ffd23f", 8192: "#ff8c42",
+  // ألوان المكعبات (Neon Cyberpunk): وجه علوي داكن + توهّج/نص نيون
+  const BLOCK_COLORS = {
+    2:    { top: "#141428", side1: "#0e1a30", side2: "#0a2440", text: "#00D4FF", glow: "#00D4FF" },
+    4:    { top: "#0f2418", side1: "#0c2e1a", side2: "#0a3a24", text: "#00FF88", glow: "#00FF88" },
+    8:    { top: "#2a1414", side1: "#3a1212", side2: "#4a0f0f", text: "#FF8A8A", glow: "#FF3030" },
+    16:   { top: "#2a2410", side1: "#3a3010", side2: "#4a380c", text: "#FFB347", glow: "#F39C12" },
+    32:   { top: "#141a2e", side1: "#10233e", side2: "#0c2a4a", text: "#7EB8FF", glow: "#3498DB" },
+    64:   { top: "#241024", side1: "#34103a", side2: "#400f4a", text: "#DA70D6", glow: "#9B59B6" },
+    128:  { top: "#242414", side1: "#343410", side2: "#44440c", text: "#FFE34D", glow: "#F1C40F" },
+    256:  { top: "#102a2a", side1: "#0e3a3a", side2: "#0a4a4a", text: "#5FF0E0", glow: "#1ABC9C" },
+    512:  { top: "#2a1020", side1: "#3a0e2c", side2: "#4a0a38", text: "#FF7AB8", glow: "#FF006E" },
+    1024: { top: "#1a1030", side1: "#220e44", side2: "#2c0a58", text: "#B388FF", glow: "#7C4DFF" },
+    2048: { top: "#2a2008", side1: "#3a2c06", side2: "#4a3804", text: "#FFD23F", glow: "#FFC107" },
+    4096: { top: "#0a2a1a", side1: "#083a22", side2: "#064a2c", text: "#6BFFB0", glow: "#00FF88" },
   };
-  const colorForValue = (v) => VALUE_COLORS[v] || "#ff8c42";
+  function blockStyle(v) {
+    if (BLOCK_COLORS[v]) return BLOCK_COLORS[v];
+    // توليد لوني للأرقام الأكبر حسب الأُس
+    const e = Math.round(log2(v)), hue = (e * 38) % 360;
+    return {
+      top: `hsl(${hue},45%,12%)`, side1: `hsl(${hue},50%,10%)`, side2: `hsl(${hue},55%,8%)`,
+      text: `hsl(${hue},100%,72%)`, glow: `hsl(${hue},100%,60%)`,
+    };
+  }
+  const colorForValue = (v) => blockStyle(v).glow; // لون الجسيمات
+  let blockShape = "cube"; // cube | sphere | cylinder | gem
+  try { blockShape = localStorage.getItem("snake2048_shape") || "cube"; } catch (e) {}
   function shade(hex, f) {
     const n = parseInt(hex.slice(1), 16);
     let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
     return `rgb(${clamp(Math.round(r * f), 0, 255)},${clamp(Math.round(g * f), 0, 255)},${clamp(Math.round(b * f), 0, 255)})`;
   }
+  function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }
 
   // =====================================================================
   // كاميرا + إسقاط
@@ -133,80 +157,267 @@
     if (close) ctx.closePath(); ctx.stroke();
   }
   const mid = (a, b, t) => ({ x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t) });
+  // مسار مضلّع بحواف دائرية (ناعمة) عبر arcTo
+  function traceRounded(pts, r) {
+    const n = pts.length;
+    ctx.beginPath();
+    ctx.moveTo((pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2);
+    for (let i = 0; i < n; i++) {
+      const cur = pts[(i + 1) % n], nx = pts[(i + 2) % n];
+      ctx.arcTo(cur.x, cur.y, (cur.x + nx.x) / 2, (cur.y + nx.y) / 2, r);
+    }
+    ctx.closePath();
+  }
 
-  function drawCube(wx, wy, sizeW, opts) {
-    const color = opts.color, half = sizeW / 2;
+  // رقم واضح + ظل أرضي مشتركان لكل الأشكال
+  function drawNum(cx, cy, label, fs) {
+    ctx.font = `800 ${fs}px "Orbitron","Rajdhani",sans-serif`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineJoin = "round";
+    ctx.lineWidth = Math.max(3, fs * 0.24); ctx.strokeStyle = "rgba(0,0,0,0.8)";
+    ctx.strokeText(label, cx, cy);
+    ctx.fillStyle = "#F2FAFF"; ctx.fillText(label, cx, cy);
+  }
+  function groundShadow(wx, wy, sizeW, ch) {
+    ctx.save(); ctx.globalAlpha = 0.45; ctx.fillStyle = "#000";
+    const sh = project(wx, wy);
+    ctx.beginPath();
+    ctx.ellipse(sh.x, sh.y + ch * 0.7, sizeW * 0.5 * CONFIG.SCALE * 1.25, sizeW * 0.5 * CONFIG.SCALE * 0.6, 0, 0, Math.PI * 2);
+    ctx.fill(); ctx.restore();
+  }
+  const numF = (label) => label.length > 4 ? 0.30 : label.length > 3 ? 0.36 : 0.46;
+
+  function drawCube(wx, wy, sizeW, value) {
+    if (blockShape === "sphere") return drawSphere(wx, wy, sizeW, value);
+    if (blockShape === "cylinder") return drawCylinder(wx, wy, sizeW, value);
+    if (blockShape === "gem") return drawGem(wx, wy, sizeW, value);
+    if (blockShape === "hex") return drawPrism(wx, wy, sizeW, value, 6);
+    if (blockShape === "pyramid") return drawPyramid(wx, wy, sizeW, value);
+    if (blockShape === "star") return drawStar(wx, wy, sizeW, value);
+    const st = blockStyle(value), half = sizeW / 2;
     const t1 = project(wx - half, wy - half), t2 = project(wx + half, wy - half);
     const t3 = project(wx + half, wy + half), t4 = project(wx - half, wy + half);
     const ch = sizeW * CONFIG.SCALE * CONFIG.CUBE_H;
+    const b2 = { x: t2.x, y: t2.y + ch }, b3 = { x: t3.x, y: t3.y + ch }, b4 = { x: t4.x, y: t4.y + ch };
+    const r = clamp(sizeW * CONFIG.SCALE * 0.16, 3, 9); // نصف قطر الحواف
+    const cx = (t1.x + t2.x + t3.x + t4.x) / 4, cy = (t1.y + t2.y + t3.y + t4.y) / 4;
 
-    // ظل ديناميكي أعمق
+    // ظل أرضي
     ctx.save();
-    ctx.globalAlpha = 0.4; ctx.fillStyle = "#000";
+    ctx.globalAlpha = 0.45; ctx.fillStyle = "#000";
     const sh = project(wx, wy);
     ctx.beginPath();
-    ctx.ellipse(sh.x, sh.y + ch * 0.7, half * CONFIG.SCALE * 1.2, half * CONFIG.SCALE * 0.62, 0, 0, Math.PI * 2);
+    ctx.ellipse(sh.x, sh.y + ch * 0.7, half * CONFIG.SCALE * 1.25, half * CONFIG.SCALE * 0.6, 0, 0, Math.PI * 2);
     ctx.fill(); ctx.restore();
 
-    ctx.fillStyle = shade(color, 0.70);
-    quad(t2, t3, { x: t3.x, y: t3.y + ch }, { x: t2.x, y: t2.y + ch });
-    ctx.fillStyle = shade(color, 0.52);
-    quad(t4, t3, { x: t3.x, y: t3.y + ch }, { x: t4.x, y: t4.y + ch });
-    ctx.fillStyle = color; quad(t1, t2, t3, t4);
-    ctx.fillStyle = shade(color, 1.18);
-    quad(mid(t1, t2, 0.12), mid(t2, t3, 0.12), { x: (t3.x + t1.x) / 2, y: (t3.y + t1.y) / 2 }, mid(t1, t4, 0.12));
-    ctx.strokeStyle = shade(color, 0.40); ctx.lineWidth = 1.4;
-    strokePath([t1, t2, t3, t4], true);
-    strokePath([t2, { x: t2.x, y: t2.y + ch }], false);
-    strokePath([t3, { x: t3.x, y: t3.y + ch }], false);
-    strokePath([t4, { x: t4.x, y: t4.y + ch }], false);
+    ctx.lineJoin = "round"; ctx.lineCap = "round";
 
-    if (opts.label) {
-      const cx = (t1.x + t2.x + t3.x + t4.x) / 4, cy = (t1.y + t2.y + t3.y + t4.y) / 4;
-      const lenF = opts.label.length > 4 ? 0.28 : opts.label.length > 3 ? 0.34 : 0.42;
-      const fs = Math.max(9, sizeW * CONFIG.SCALE * lenF);
-      ctx.font = `800 ${fs}px "Segoe UI", Tahoma, sans-serif`;
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.lineWidth = Math.max(2, fs * 0.16); ctx.strokeStyle = "rgba(0,0,0,0.5)";
-      ctx.strokeText(opts.label, cx, cy);
-      ctx.fillStyle = "#fff"; ctx.fillText(opts.label, cx, cy);
+    // الوجهان الجانبيان (تعبئة كاملة لتفادي الفراغات)
+    ctx.fillStyle = st.side1; quad(t2, t3, b3, b2);
+    ctx.fillStyle = st.side2; quad(t4, t3, b3, b4);
+
+    // الوجه العلوي بحواف ناعمة + تدرّج
+    const grad = ctx.createLinearGradient(t1.x, t1.y, t3.x, t3.y);
+    grad.addColorStop(0, st.top); grad.addColorStop(1, st.side1);
+    ctx.fillStyle = grad; traceRounded([t1, t2, t3, t4], r); ctx.fill();
+    // انعكاس ضوء
+    ctx.fillStyle = "rgba(255,255,255,0.09)";
+    quad(t1, mid(t1, t2, 0.45), mid(t1, t3, 0.32), mid(t1, t4, 0.45));
+
+    // الصورة الظلّية الخارجية بحواف ناعمة + توهّج نيون
+    ctx.save();
+    ctx.shadowColor = st.glow; ctx.shadowBlur = 9;
+    ctx.strokeStyle = st.glow; ctx.lineWidth = 1.8;
+    traceRounded([t1, t2, b2, b3, b4, t4], r); ctx.stroke();
+    ctx.restore();
+    // حدّ الوجه العلوي
+    ctx.strokeStyle = hexA(st.glow, 0.85); ctx.lineWidth = 1.4;
+    traceRounded([t1, t2, t3, t4], r); ctx.stroke();
+
+    // الرقم — واضح وحادّ
+    drawNum(cx, cy, fmtNum(value), Math.max(11, sizeW * CONFIG.SCALE * numF(fmtNum(value))));
+  }
+
+  // كرة
+  function drawSphere(wx, wy, sizeW, value) {
+    const st = blockStyle(value), c = project(wx, wy);
+    const rad = sizeW * CONFIG.SCALE * 0.62, cy = c.y - rad * 0.55;
+    groundShadow(wx, wy, sizeW, rad);
+    ctx.fillStyle = st.top; ctx.beginPath(); ctx.arc(c.x, cy, rad, 0, Math.PI * 2); ctx.fill();
+    const g = ctx.createRadialGradient(c.x - rad * 0.35, cy - rad * 0.4, rad * 0.1, c.x, cy, rad);
+    g.addColorStop(0, "rgba(255,255,255,0.35)"); g.addColorStop(0.5, "rgba(255,255,255,0.05)"); g.addColorStop(1, "rgba(0,0,0,0.25)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, cy, rad, 0, Math.PI * 2); ctx.fill();
+    ctx.save(); ctx.shadowColor = st.glow; ctx.shadowBlur = 10; ctx.strokeStyle = st.glow; ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.arc(c.x, cy, rad, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    drawNum(c.x, cy, fmtNum(value), Math.max(11, rad * 0.9 * numF(fmtNum(value)) * 2.0));
+  }
+  // أسطوانة (قرص)
+  function drawCylinder(wx, wy, sizeW, value) {
+    const st = blockStyle(value), c = project(wx, wy);
+    const rx = sizeW * CONFIG.SCALE * 0.62, ry = rx * 0.5, ch = sizeW * CONFIG.SCALE * 0.7, topY = c.y - ch;
+    groundShadow(wx, wy, sizeW, ch * 1.2);
+    ctx.fillStyle = st.side2; ctx.beginPath(); ctx.ellipse(c.x, c.y, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = st.side1; ctx.fillRect(c.x - rx, topY, rx * 2, ch);
+    ctx.fillStyle = st.side2; ctx.beginPath(); ctx.ellipse(c.x, c.y, rx, ry, 0, 0, Math.PI); ctx.fill();
+    ctx.fillStyle = st.top; ctx.beginPath(); ctx.ellipse(c.x, topY, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.save(); ctx.shadowColor = st.glow; ctx.shadowBlur = 9; ctx.strokeStyle = st.glow; ctx.lineWidth = 1.7;
+    ctx.beginPath(); ctx.ellipse(c.x, topY, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(c.x - rx, topY); ctx.lineTo(c.x - rx, c.y); ctx.moveTo(c.x + rx, topY); ctx.lineTo(c.x + rx, c.y); ctx.stroke();
+    ctx.restore();
+    drawNum(c.x, topY, fmtNum(value), Math.max(11, sizeW * CONFIG.SCALE * numF(fmtNum(value))));
+  }
+  // جوهرة (معيّن)
+  function drawGem(wx, wy, sizeW, value) {
+    const st = blockStyle(value), c = project(wx, wy);
+    const w = sizeW * CONFIG.SCALE * 0.7, h = sizeW * CONFIG.SCALE * 0.85, cy = c.y - h * 0.55;
+    const top = { x: c.x, y: cy - h }, rt = { x: c.x + w, y: cy }, bot = { x: c.x, y: cy + h }, lf = { x: c.x - w, y: cy };
+    groundShadow(wx, wy, sizeW, h);
+    ctx.fillStyle = st.side2; ctx.beginPath(); ctx.moveTo(top.x, top.y); ctx.lineTo(lf.x, lf.y); ctx.lineTo(bot.x, bot.y); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = st.top; ctx.beginPath(); ctx.moveTo(top.x, top.y); ctx.lineTo(rt.x, rt.y); ctx.lineTo(bot.x, bot.y); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.12)"; ctx.beginPath(); ctx.moveTo(top.x, top.y); ctx.lineTo(rt.x, rt.y); ctx.lineTo(c.x, cy); ctx.lineTo(lf.x, lf.y); ctx.closePath(); ctx.fill();
+    ctx.save(); ctx.shadowColor = st.glow; ctx.shadowBlur = 9; ctx.strokeStyle = st.glow; ctx.lineWidth = 1.8; ctx.lineJoin = "round";
+    ctx.beginPath(); ctx.moveTo(top.x, top.y); ctx.lineTo(rt.x, rt.y); ctx.lineTo(bot.x, bot.y); ctx.lineTo(lf.x, lf.y); ctx.closePath(); ctx.stroke(); ctx.restore();
+    drawNum(c.x, cy, fmtNum(value), Math.max(11, sizeW * CONFIG.SCALE * numF(fmtNum(value))));
+  }
+
+  // منشور سداسي/متعدّد الأضلاع
+  function drawPrism(wx, wy, sizeW, value, sides) {
+    const st = blockStyle(value), c = project(wx, wy);
+    const rx = sizeW * CONFIG.SCALE * 0.6, ry = rx * 0.5, ch = sizeW * CONFIG.SCALE * 0.7, topY = c.y - ch;
+    const pt = (cy2, i) => ({ x: c.x + Math.cos(-Math.PI / 2 + i * Math.PI * 2 / sides) * rx, y: cy2 + Math.sin(-Math.PI / 2 + i * Math.PI * 2 / sides) * ry });
+    groundShadow(wx, wy, sizeW, ch * 1.2);
+    // أوجه جانبية
+    for (let i = 0; i < sides; i++) {
+      const a = pt(c.y, i), b = pt(c.y, (i + 1) % sides), ta = pt(topY, i), tb = pt(topY, (i + 1) % sides);
+      if ((a.y + b.y) / 2 < c.y - 0.5) continue; // الأمامية فقط
+      ctx.fillStyle = i % 2 ? st.side1 : st.side2; quad(a, b, tb, ta);
     }
+    // الوجه العلوي
+    ctx.fillStyle = st.top; ctx.beginPath();
+    for (let i = 0; i < sides; i++) { const p = pt(topY, i); i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); } ctx.closePath(); ctx.fill();
+    ctx.save(); ctx.shadowColor = st.glow; ctx.shadowBlur = 9; ctx.strokeStyle = st.glow; ctx.lineWidth = 1.7; ctx.lineJoin = "round";
+    ctx.beginPath(); for (let i = 0; i < sides; i++) { const p = pt(topY, i); i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); } ctx.closePath(); ctx.stroke(); ctx.restore();
+    drawNum(c.x, topY, fmtNum(value), Math.max(11, sizeW * CONFIG.SCALE * numF(fmtNum(value))));
+  }
+  // هرم
+  function drawPyramid(wx, wy, sizeW, value) {
+    const st = blockStyle(value), c = project(wx, wy);
+    const half = sizeW * CONFIG.SCALE * 0.62, ch = sizeW * CONFIG.SCALE * 0.95;
+    const b1 = project(wx - sizeW / 2, wy - sizeW / 2), b2 = project(wx + sizeW / 2, wy - sizeW / 2), b3 = project(wx + sizeW / 2, wy + sizeW / 2), b4 = project(wx - sizeW / 2, wy + sizeW / 2);
+    const apex = { x: c.x, y: c.y - ch };
+    groundShadow(wx, wy, sizeW, ch * 0.5);
+    ctx.lineJoin = "round";
+    ctx.fillStyle = st.side2; ctx.beginPath(); ctx.moveTo(b4.x, b4.y); ctx.lineTo(b3.x, b3.y); ctx.lineTo(apex.x, apex.y); ctx.closePath(); ctx.fill(); // أمامي
+    ctx.fillStyle = st.side1; ctx.beginPath(); ctx.moveTo(b2.x, b2.y); ctx.lineTo(b3.x, b3.y); ctx.lineTo(apex.x, apex.y); ctx.closePath(); ctx.fill(); // يمين
+    ctx.save(); ctx.shadowColor = st.glow; ctx.shadowBlur = 9; ctx.strokeStyle = st.glow; ctx.lineWidth = 1.7;
+    ctx.beginPath(); ctx.moveTo(b4.x, b4.y); ctx.lineTo(b3.x, b3.y); ctx.lineTo(b2.x, b2.y); ctx.lineTo(apex.x, apex.y); ctx.lineTo(b4.x, b4.y); ctx.lineTo(apex.x, apex.y); ctx.lineTo(b3.x, b3.y); ctx.stroke(); ctx.restore();
+    drawNum(c.x, c.y - ch * 0.35, fmtNum(value), Math.max(10, sizeW * CONFIG.SCALE * numF(fmtNum(value)) * 0.85));
+  }
+  // نجمة
+  function drawStar(wx, wy, sizeW, value) {
+    const st = blockStyle(value), c = project(wx, wy);
+    const R = sizeW * CONFIG.SCALE * 0.72, rIn = R * 0.45, cy = c.y - R * 0.5;
+    groundShadow(wx, wy, sizeW, R);
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const rr = i % 2 ? rIn : R, a = -Math.PI / 2 + i * Math.PI / 5;
+      const x = c.x + Math.cos(a) * rr, y = cy + Math.sin(a) * rr * 0.85;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = st.top; ctx.fill();
+    ctx.save(); ctx.shadowColor = st.glow; ctx.shadowBlur = 10; ctx.strokeStyle = st.glow; ctx.lineWidth = 1.8; ctx.lineJoin = "round"; ctx.stroke(); ctx.restore();
+    drawNum(c.x, cy, fmtNum(value), Math.max(10, sizeW * CONFIG.SCALE * numF(fmtNum(value)) * 0.8));
   }
 
   function drawCard(wx, wy, sizeW, type) {
     const pu = POWERUPS[type], half = sizeW / 2;
     const a = project(wx - half, wy - half), b = project(wx + half, wy - half);
     const c = project(wx + half, wy + half), d = project(wx - half, wy + half);
+    const cx = (a.x + b.x + c.x + d.x) / 4, cy = (a.y + b.y + c.y + d.y) / 4;
     const pulse = 0.5 + 0.5 * Math.sin(now * 3 + wx);
-    ctx.save(); ctx.shadowColor = pu.glow; ctx.shadowBlur = 14 + pulse * 10;
-    ctx.fillStyle = shade(pu.color, 0.45); quad(a, b, c, d);
+
+    // شعاع ضوء يصعد من البطاقة
+    ctx.save();
+    const beamH = sizeW * CONFIG.SCALE * 1.7;
+    const bg = ctx.createLinearGradient(cx, cy, cx, cy - beamH);
+    bg.addColorStop(0, hexA(pu.glow, 0.30 * (0.6 + pulse * 0.4))); bg.addColorStop(1, hexA(pu.glow, 0));
+    ctx.fillStyle = bg;
+    ctx.beginPath(); ctx.moveTo(cx - 9, cy); ctx.lineTo(cx + 9, cy); ctx.lineTo(cx + 3, cy - beamH); ctx.lineTo(cx - 3, cy - beamH); ctx.closePath(); ctx.fill();
+    ctx.restore();
+
+    // البطاقة + توهّج نابض
+    ctx.save(); ctx.shadowColor = pu.glow; ctx.shadowBlur = 16 + pulse * 14;
+    ctx.fillStyle = shade(pu.color, 0.5); quad(a, b, c, d);
     const k = 0.16; ctx.fillStyle = pu.color;
     quad(mid(a, c, k), mid(b, d, k), mid(c, a, k), mid(d, b, k));
     ctx.restore();
-    ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 1.5;
+    ctx.strokeStyle = hexA("#ffffff", 0.4); ctx.lineWidth = 1.5;
     strokePath([mid(a, c, 0.30), mid(b, d, 0.30), mid(c, a, 0.30), mid(d, b, 0.30)], true);
-    const cx = (a.x + b.x + c.x + d.x) / 4, cy = (a.y + b.y + c.y + d.y) / 4;
-    const fs = sizeW * CONFIG.SCALE * 0.40;
-    ctx.font = `800 ${fs}px "Segoe UI", Tahoma, sans-serif`;
+
+    // الرمز
+    const fs = sizeW * CONFIG.SCALE * 0.42;
+    ctx.font = `700 ${fs}px "Orbitron", "Rajdhani", sans-serif`;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,0.55)";
-    ctx.strokeText(pu.label, cx, cy); ctx.fillStyle = "#fff"; ctx.fillText(pu.label, cx, cy);
+    ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,0.6)"; ctx.strokeText(pu.label, cx, cy);
+    ctx.save(); ctx.shadowColor = pu.glow; ctx.shadowBlur = 8; ctx.fillStyle = "#fff"; ctx.fillText(pu.label, cx, cy); ctx.restore();
   }
 
   function drawBox(cx, cy, hw, hh, height, color) {
-    const t1 = project(cx - hw, cy - hh), t2 = project(cx + hw, cy - hh);
-    const t3 = project(cx + hw, cy + hh), t4 = project(cx - hw, cy + hh);
+    // القاعدة = حدود التصادم (الخط السفلي الخارجي)
+    const b1 = project(cx - hw, cy - hh), b2 = project(cx + hw, cy - hh);
+    const b3 = project(cx + hw, cy + hh), b4 = project(cx - hw, cy + hh);
     const ch = height * CONFIG.SCALE * 0.5;
-    ctx.fillStyle = shade(color, 0.62);
-    quad(t2, t3, { x: t3.x, y: t3.y + ch }, { x: t2.x, y: t2.y + ch });
-    ctx.fillStyle = shade(color, 0.45);
-    quad(t4, t3, { x: t3.x, y: t3.y + ch }, { x: t4.x, y: t4.y + ch });
-    ctx.fillStyle = color; quad(t1, t2, t3, t4);
-    ctx.strokeStyle = shade(color, 0.30); ctx.lineWidth = 1.5;
-    strokePath([t1, t2, t3, t4], true);
-    strokePath([t2, { x: t2.x, y: t2.y + ch }], false);
-    strokePath([t3, { x: t3.x, y: t3.y + ch }], false);
-    strokePath([t4, { x: t4.x, y: t4.y + ch }], false);
+    const up = (p) => ({ x: p.x, y: p.y - ch });
+    const T1 = up(b1), T2 = up(b2), T3 = up(b3), T4 = up(b4); // الوجه العلوي مرتفع
+    const r = 7, edge = "#4ac8ff";
+    ctx.lineJoin = "round"; ctx.lineCap = "round";
+    // أوجه شبه شفافة ترتفع من القاعدة (ترى ما خلفها)
+    ctx.save(); ctx.globalAlpha = 0.5;
+    ctx.fillStyle = shade(color, 0.62); quad(b2, b3, T3, T2); // أمامي‑أيمن
+    ctx.fillStyle = shade(color, 0.45); quad(b4, b3, T3, T4); // أمامي‑أيسر
+    ctx.fillStyle = color; traceRounded([T1, T2, T3, T4], r); ctx.fill(); // علوي
+    ctx.restore();
+    // صورة ظلّية خارجية متوهّجة: القاعدة الأمامية ثم الأعلى
+    ctx.save();
+    ctx.shadowColor = hexA(edge, 0.7); ctx.shadowBlur = 8;
+    ctx.strokeStyle = hexA(edge, 0.85); ctx.lineWidth = 1.7;
+    traceRounded([b4, b3, b2, T2, T1, T4], r); ctx.stroke();
+    ctx.restore();
+    ctx.strokeStyle = hexA(edge, 0.7); ctx.lineWidth = 1.4;
+    traceRounded([T1, T2, T3, T4], r); ctx.stroke(); // حدّ الأعلى
+    // خط القاعدة الأمامي (الحدود الخارجية)
+    ctx.strokeStyle = hexA(edge, 0.45); ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(b4.x, b4.y); ctx.lineTo(b3.x, b3.y); ctx.lineTo(b2.x, b2.y); ctx.stroke();
+  }
+  function drawObstacle(o) {
+    if (o.kind === "cyl") drawPillar(o.x, o.y, Math.min(o.hw, o.hh), o.h, o.color, 0);
+    else if (o.kind === "hex") drawPillar(o.x, o.y, Math.min(o.hw, o.hh), o.h, o.color, 6);
+    else drawBox(o.x, o.y, o.hw, o.hh, o.h, o.color);
+  }
+  // عمود (أسطواني sides=0 أو متعدّد الأضلاع) يرتفع من القاعدة، شبه شفاف
+  function drawPillar(cx, cy, rad, height, color, sides) {
+    const c = project(cx, cy), edge = "#4ac8ff";
+    const rx = rad * CONFIG.SCALE, ry = rx * 0.5, ch = height * CONFIG.SCALE * 0.5, topY = c.y - ch;
+    ctx.lineJoin = "round"; ctx.lineCap = "round";
+    if (sides === 0) {
+      ctx.save(); ctx.globalAlpha = 0.5;
+      ctx.fillStyle = shade(color, 0.5); ctx.fillRect(c.x - rx, topY, rx * 2, ch);
+      ctx.fillStyle = shade(color, 0.62); ctx.beginPath(); ctx.ellipse(c.x, c.y, rx, ry, 0, 0, Math.PI); ctx.fill();
+      ctx.fillStyle = color; ctx.beginPath(); ctx.ellipse(c.x, topY, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      ctx.save(); ctx.shadowColor = hexA(edge, 0.7); ctx.shadowBlur = 8; ctx.strokeStyle = hexA(edge, 0.85); ctx.lineWidth = 1.7;
+      ctx.beginPath(); ctx.ellipse(c.x, topY, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(c.x - rx, topY); ctx.lineTo(c.x - rx, c.y); ctx.moveTo(c.x + rx, topY); ctx.lineTo(c.x + rx, c.y); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(c.x, c.y, rx, ry, 0, 0, Math.PI); ctx.stroke(); ctx.restore();
+    } else {
+      const pt = (cy2, i) => ({ x: c.x + Math.cos(-Math.PI / 2 + i * Math.PI * 2 / sides) * rx, y: cy2 + Math.sin(-Math.PI / 2 + i * Math.PI * 2 / sides) * ry });
+      ctx.save(); ctx.globalAlpha = 0.5;
+      for (let i = 0; i < sides; i++) { const a = pt(c.y, i), b = pt(c.y, (i + 1) % sides), ta = pt(topY, i), tb = pt(topY, (i + 1) % sides); if ((a.y + b.y) / 2 < c.y - 0.5) continue; ctx.fillStyle = i % 2 ? shade(color, 0.5) : shade(color, 0.62); quad(a, b, tb, ta); }
+      ctx.fillStyle = color; ctx.beginPath(); for (let i = 0; i < sides; i++) { const p = pt(topY, i); i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); } ctx.closePath(); ctx.fill();
+      ctx.restore();
+      ctx.save(); ctx.shadowColor = hexA(edge, 0.7); ctx.shadowBlur = 8; ctx.strokeStyle = hexA(edge, 0.85); ctx.lineWidth = 1.7; ctx.lineJoin = "round";
+      ctx.beginPath(); for (let i = 0; i < sides; i++) { const p = pt(topY, i); i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); } ctx.closePath(); ctx.stroke(); ctx.restore();
+    }
   }
 
   // =====================================================================
@@ -214,7 +425,7 @@
   // =====================================================================
   const snake = {
     x: 0, y: 0, angle: 0, values: [], path: [],
-    speedTimer: 0, stamina: 1, boosting: false, dangerTimer: 0, headDangerTimer: 0, charges: 0, radarTimer: 0,
+    speedTimer: 0, stamina: 1, boosting: false, exhausted: false, staminaDelay: 0, dangerTimer: 0, headDangerTimer: 0, charges: 0, radarTimer: 0,
   };
   let playerName = "أنت";
 
@@ -222,7 +433,7 @@
     snake.x = 0; snake.y = 0; snake.angle = 0;
     snake.values = CONFIG.START_SNAKE.slice().sort((a, b) => b - a);
     snake.path = [{ x: 0, y: 0 }];
-    snake.speedTimer = 0; snake.stamina = 1; snake.boosting = false;
+    snake.speedTimer = 0; snake.stamina = 1; snake.boosting = false; snake.exhausted = false; snake.staminaDelay = 0;
     snake.dangerTimer = 0; snake.headDangerTimer = 0; snake.charges = 0; snake.radarTimer = 0;
   }
   function segmentDistances() {
@@ -274,13 +485,38 @@
     return Math.abs(x) <= R && Math.abs(y) <= R; // square / maze
   }
   function insideObstacle(x, y, margin) {
-    for (const o of obstacles)
-      if (x > o.x - o.hw - margin && x < o.x + o.hw + margin && y > o.y - o.hh - margin && y < o.y + o.hh + margin) return true;
+    for (const o of obstacles) {
+      if (o.kind === "cyl" || o.kind === "hex") {
+        if (Math.hypot(o.x - x, o.y - y) < Math.min(o.hw, o.hh) * 0.72 + margin) return true; // نصف القطر المرئي
+      } else if (x > o.x - o.hw - margin && x < o.x + o.hw + margin && y > o.y - o.hh - margin && y < o.y + o.hh + margin) return true;
+    }
     return false;
   }
   function inDanger(x, y) {
     for (const dz of dangers) if (Math.hypot(dz.x - x, dz.y - y) < dz.r) return true;
+    for (const p of dangerProjectiles) if (Math.hypot(p.x - x, p.y - y) < p.r + 0.6) return true;
     return false;
+  }
+  // مناطق خطر متحرّكة (مقذوفات) تتولّد في المستويات المتقدّمة
+  let dangerProjectiles = [], dprojTimer = 0;
+  function updateDangerProjectiles(dt) {
+    if (gameLevel >= 2 && dangers.length) {
+      dprojTimer += dt;
+      const interval = Math.max(0.7, 2.6 - gameLevel * 0.25);
+      while (dprojTimer >= interval) {
+        dprojTimer -= interval;
+        const dz = dangers[(Math.random() * dangers.length) | 0];
+        const a = rand(0, Math.PI * 2), sp = rand(9, 15);
+        const turn = gameLevel >= 4 ? rand(-1.6, 1.6) : 0; // حلزوني في المستويات الأعلى
+        dangerProjectiles.push({ x: dz.x, y: dz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: rand(2.5, 4), turn, age: 0 });
+      }
+    }
+    for (let i = dangerProjectiles.length - 1; i >= 0; i--) {
+      const p = dangerProjectiles[i]; p.age += dt;
+      if (p.turn) { const ang = Math.atan2(p.vy, p.vx) + p.turn * dt, s = Math.hypot(p.vx, p.vy); p.vx = Math.cos(ang) * s; p.vy = Math.sin(ang) * s; p.turn *= 0.985; }
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      if (p.age > 14 || Math.abs(p.x) > CONFIG.WORLD + 8 || Math.abs(p.y) > CONFIG.WORLD + 8) dangerProjectiles.splice(i, 1);
+    }
   }
   function freePos(margin) {
     const R = CONFIG.WORLD * 0.9;
@@ -298,7 +534,7 @@
     return { id: nextItemId++, x: p.x, y: p.y, value: v, size: sizeForValue(v), vx: moving ? Math.cos(a) * 2.2 : 0, vy: moving ? Math.sin(a) * 2.2 : 0 };
   }
   function looseFood(x, y, v) {
-    return { id: nextItemId++, x, y, value: Math.max(2, v), size: sizeForValue(Math.max(2, v)), vx: 0, vy: 0 };
+    return { id: nextItemId++, x, y, value: Math.max(2, v), size: sizeForValue(Math.max(2, v)), vx: 0, vy: 0, noEat: now + 1.2 };
   }
   function spawnPowerup() {
     const p = freePos(2), t = weighted(POWERUP_WEIGHTS, "t");
@@ -326,29 +562,34 @@
           if (Math.random() < 0.30) {
             const x = i * gap, y = j * gap;
             if (Math.hypot(x, y) < 16 || !inBounds(x, y)) continue;
-            obstacles.push({ x, y, hw: gap * 0.32, hh: gap * 0.32, h: 2.6, color: "#3a4a66" });
+            obstacles.push({ x, y, hw: gap * 0.32, hh: gap * 0.32, h: 5.0, color: "#3a4a66", kind: "box" });
           }
         }
     } else {
       const count = 5 + Math.floor(Math.random() * 5);
+      const KINDS = ["box", "cyl", "hex"];
       let tries = 0;
       while (obstacles.length < count && tries < 300) {
         tries++;
         const x = rand(-R * 0.8, R * 0.8), y = rand(-R * 0.8, R * 0.8);
         if (Math.hypot(x, y) < 18 || !inBounds(x, y)) continue;
-        const longish = Math.random() < 0.5, a = rand(3, 9), b = rand(3, 9);
-        const hw = longish ? a * 1.6 : a, hh = longish ? b : b * 1.6;
+        const kind = KINDS[(Math.random() * KINDS.length) | 0];
+        let hw, hh;
+        if (kind === "box") { const longish = Math.random() < 0.5, a = rand(3, 9), b = rand(3, 9); hw = longish ? a * 1.6 : a; hh = longish ? b : b * 1.6; }
+        else { hw = hh = rand(4, 7); } // أعمدة دائرية/سداسية مربعة القاعدة
         let ok = true;
         for (const o of obstacles) if (Math.abs(o.x - x) < o.hw + hw + 4 && Math.abs(o.y - y) < o.hh + hh + 4) { ok = false; break; }
-        if (ok) obstacles.push({ x, y, hw, hh, h: 2.6, color: "#3a4a66" });
+        if (ok) obstacles.push({ x, y, hw, hh, h: 5.0, color: "#3a4a66", kind });
       }
     }
-    // مناطق خطر (تزيد مع المستوى)
+    // مناطق خطر (تزيد مع المستوى) بأشكال مختلفة
+    dangerProjectiles = []; dprojTimer = 0;
+    const DSHAPES = ["circle", "square", "triangle"];
     const dz = 3 + gameLevel;
     for (let i = 0; i < dz; i++) {
       const x = rand(-R * 0.85, R * 0.85), y = rand(-R * 0.85, R * 0.85);
       if (Math.hypot(x, y) < 20 || !inBounds(x, y)) { i--; continue; }
-      dangers.push({ x, y, r: rand(6, 11) });
+      dangers.push({ x, y, r: rand(6, 11), shape: DSHAPES[(Math.random() * DSHAPES.length) | 0], rot: rand(0, Math.PI) });
     }
   }
 
@@ -370,9 +611,10 @@
       merged = false;
       for (let i = 0; i < snake.values.length - 1; i++) {
         if (snake.values[i] === snake.values[i + 1]) {
-          snake.values[i] *= 2; snake.values.splice(i + 1, 1);
+          snake.values[i] *= 2; const nv = snake.values[i];
+          snake.values.splice(i + 1, 1);
           snake.values.sort((a, b) => b - a);
-          spawnMergeFx(); merged = true; break;
+          spawnMergeFx(nv); merged = true; break;
         }
       }
     }
@@ -423,7 +665,44 @@
       particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rand(0.3, 0.7), max: 0.7, color, size: rand(2, 5) });
     }
   }
-  function spawnMergeFx() { spawnBurst(snake.x, snake.y, "#fff6c2", 14); }
+  // حلقات توهّج + وميض شاشة + اهتزاز
+  let rings = [], flash = 0, flashCol = "#ffffff", shake = 0;
+  function spawnRing(x, y, color) { rings.push({ x, y, r: 0.3, life: 0.5, max: 0.5, color }); }
+  function updateRings(dt) {
+    for (let i = rings.length - 1; i >= 0; i--) { const r = rings[i]; r.life -= dt; r.r += dt * 9; if (r.life <= 0) rings.splice(i, 1); }
+    if (flash > 0) flash = Math.max(0, flash - dt * 1.6);
+    if (shake > 0) shake = Math.max(0, shake - dt);
+  }
+  function drawRings() {
+    for (const r of rings) {
+      const p = project(r.x, r.y), a = clamp(r.life / r.max, 0, 1);
+      ctx.save();
+      ctx.globalAlpha = a * 0.85; ctx.strokeStyle = r.color; ctx.lineWidth = 3;
+      ctx.shadowColor = r.color; ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y - 10, r.r * CONFIG.SCALE, r.r * CONFIG.SCALE * 0.5, 0, 0, Math.PI * 2);
+      ctx.stroke(); ctx.restore();
+    }
+  }
+  function drawFlash() { if (flash > 0) { ctx.save(); ctx.globalAlpha = clamp(flash, 0, 0.5); ctx.fillStyle = flashCol; ctx.fillRect(0, 0, W, H); ctx.restore(); } }
+  const shakeOffset = () => (shake > 0 ? { x: (Math.random() * 2 - 1) * shake * 18, y: (Math.random() * 2 - 1) * shake * 18 } : { x: 0, y: 0 });
+  function spawnMergeFx(value) {
+    const glow = blockStyle(value || 4).glow;
+    spawnBurst(snake.x, snake.y, glow, 16);
+    spawnRing(snake.x, snake.y, glow);
+    if (value >= 2048) { flashCol = "#ffffff"; flash = 0.35; } // وميض للأرقام الكبيرة
+  }
+  // ألعاب نارية لشاشة الفوز
+  let fireT = 0;
+  function fireworksTick(dt) {
+    fireT -= dt;
+    if (fireT <= 0) {
+      fireT = rand(0.25, 0.6);
+      const c = unproject(rand(W * 0.2, W * 0.8), rand(H * 0.2, H * 0.55));
+      const col = ["#00D4FF", "#9B59B6", "#F39C12", "#FF006E", "#00FF88"][(Math.random() * 5) | 0];
+      spawnBurst(c.x, c.y, col, 22); spawnRing(c.x, c.y, col);
+    }
+  }
   // أثر السرعة: خطوط انسيابية متوهّجة + شرارات من خلف الذيل (لا توهّج فوق المكعبات)
   function spawnBoostTrail() {
     const col = snake.speedTimer > 0 ? "#ffb020" : "#19d3ff";
@@ -443,7 +722,8 @@
   }
   function spawnEatFx(x, y) { spawnBurst(x, y, "#bfe9ff", 6); }
   function spawnDeathFx() {
-    for (const s of bodyPositions()) spawnBurst(s.x, s.y, colorForValue(s.value), 14);
+    for (const s of bodyPositions()) { spawnBurst(s.x, s.y, colorForValue(s.value), 22); spawnRing(s.x, s.y, colorForValue(s.value)); }
+    flashCol = "#FF3030"; flash = 0.45; shake = 0.55;
   }
   function updateParticles(dt) {
     for (let i = particles.length - 1; i >= 0; i--) {
@@ -581,6 +861,8 @@
       case "Digit4": case "Numpad4": emojiByIndex(3); break;
       case "Digit5": case "Numpad5": emojiByIndex(4); break;
       case "Escape": if (state === "playing") pauseGame(); else if (state === "paused") resumeGame(); break;
+      case "Tab": e.preventDefault(); toggleLB(); break;
+      case "Digit0": case "Numpad0": toggleStats(); break;
     }
   });
   addEventListener("keyup", (e) => {
@@ -630,14 +912,14 @@
     if (mode !== "host") hideRoomCodeHud(); // الرمز يظهر للمضيف الخاص فقط
     gameLevel = 1; mapRotation = 0;
     medal.level = 0; medal.leaderId = null; medal.reign = 0; medal.leaderName = "";
-    particles = []; floatEmojis = []; playTime = 0; remotes.clear();
+    particles = []; floatEmojis = []; rings = []; flash = 0; playTime = 0; remotes.clear();
     resetSnake();
     if (online) { // موضع انطلاق عشوائي لتفادي التراكب
       const a = rand(0, Math.PI * 2), d = rand(0, CONFIG.WORLD * 0.5);
       snake.x = Math.cos(a) * d; snake.y = Math.sin(a) * d; snake.path = [{ x: snake.x, y: snake.y }];
     }
     if (authority()) initItems();
-    else { foods = []; powerups = []; obstacles = []; dangers = []; } // العميل ينتظر عالم المضيف
+    else { foods = []; powerups = []; obstacles = []; dangers = []; dangerProjectiles = []; } // العميل ينتظر عالم المضيف
     updateCamera(snake.x, snake.y);
     snake.charges = giftCharges; giftCharges = 0;
     updateCharges();
@@ -652,19 +934,24 @@
     document.getElementById("win-screen").classList.add("hidden");
     if (isHost) { hostBroadcast(worldMsg()); hostBroadcast(itemsMsg()); }
   }
+  let deathTimer = 0, deathBest = 0, deathScore = 0;
   function gameOver() {
     if (state !== "playing" && state !== "paused") return; // قد يُؤكَل وهو متوقّف مؤقتاً
     document.getElementById("pause-screen").classList.add("hidden");
-    spawnDeathFx();
-    if (headValue() > highScore) { highScore = headValue(); try { localStorage.setItem("snake2048_high", String(highScore)); } catch (e) {} }
+    deathBest = headValue() || 0; deathScore = score();
+    if (deathBest > highScore) { highScore = deathBest; try { localStorage.setItem("snake2048_high", String(highScore)); } catch (e) {} }
     if (online) netSend({ t: "dead" });
-    state = "over";
-    document.getElementById("final-best").textContent = fmtNum(headValue() || 0);
-    document.getElementById("final-score").textContent = fmtNum(score());
-    document.getElementById("over-screen").classList.remove("hidden");
+    spawnDeathFx();
+    state = "dying"; deathTimer = 0.9; // تظهر شاشة الخسارة بعد انتهاء الأنميشن
     document.getElementById("chat-bar").classList.add("hidden");
     document.body.classList.remove("in-game");
     syncPowers();
+  }
+  function finalizeOver() {
+    state = "over";
+    document.getElementById("final-best").textContent = fmtNum(deathBest);
+    document.getElementById("final-score").textContent = fmtNum(deathScore);
+    document.getElementById("over-screen").classList.remove("hidden");
   }
 
   function currentSpeed() {
@@ -704,12 +991,17 @@
     }
     updateMedalBadge();
   }
+  const MEDAL_COLORS = [null, "#CD7F32", "#C0C0C0", "#FFD23F", "#5FF0E0", "#FF6B3D", "#FF2EE6"];
   function updateMedalBadge() {
     const badge = document.getElementById("medal-badge");
     if (medal.level > 0) {
       badge.classList.remove("hidden");
+      const c = MEDAL_COLORS[medal.level] || "#FFD23F";
+      badge.style.borderColor = c;
+      badge.style.boxShadow = `0 0 20px ${c}88, 0 0 6px ${c}`;
       document.getElementById("medal-icon").textContent = MEDALS[medal.level].icon;
-      document.getElementById("medal-name").textContent = medal.leaderName || "";
+      const nm = document.getElementById("medal-name");
+      nm.textContent = medal.leaderName || ""; nm.style.color = c;
     } else badge.classList.add("hidden");
   }
   function doWin(name, id) {
@@ -777,11 +1069,22 @@
     const portrait = H > W;
     const joyBoost = portrait && input.joyActive && Math.hypot(input.joyX, input.joyY) > JOY_R * 0.85;
     const wantBoost = input.holding || input.boostKey || joyBoost;
-    snake.boosting = wantBoost && snake.stamina > 0.001;
-    if (snake.boosting) snake.stamina = Math.max(0, snake.stamina - CONFIG.BOOST_DRAIN * dt);
-    else snake.stamina = Math.min(1, snake.stamina + CONFIG.BOOST_REFILL * dt);
+    if (snake.exhausted) {
+      // نفدت الطاقة: انتظر جزءاً من الثانية ثم امتلئ، ولا اندفاع حتى التعافي
+      snake.boosting = false;
+      if (snake.staminaDelay > 0) snake.staminaDelay -= dt;
+      else snake.stamina = Math.min(1, snake.stamina + CONFIG.BOOST_REFILL * dt);
+      if (snake.stamina >= CONFIG.STAMINA_RECOVER) snake.exhausted = false;
+    } else {
+      snake.boosting = wantBoost && snake.stamina > 0.001;
+      if (snake.boosting) {
+        snake.stamina -= CONFIG.BOOST_DRAIN * dt;
+        if (snake.stamina <= 0) { snake.stamina = 0; snake.boosting = false; snake.exhausted = true; snake.staminaDelay = CONFIG.STAMINA_DELAY; }
+      } else snake.stamina = Math.min(1, snake.stamina + CONFIG.BOOST_REFILL * dt);
+    }
     if (snake.speedTimer > 0) snake.speedTimer = Math.max(0, snake.speedTimer - dt);
     if (snake.radarTimer > 0) snake.radarTimer = Math.max(0, snake.radarTimer - dt);
+    if (authority()) updateDangerProjectiles(dt); // المضيف يحرّك مناطق الخطر المتقدّمة
 
     // توجيه: لوحة المفاتيح > عصا اللمس > الماوس
     if (input.up || input.down || input.left || input.right) {
@@ -803,8 +1106,12 @@
 
     // الحواجز لا تقتل: تمنع الدخول (ندفع الرأس للخارج)
     for (const o of obstacles) {
-      const m = sizeForValue(headValue()) * 0.3;
-      if (snake.x > o.x - o.hw - m && snake.x < o.x + o.hw + m && snake.y > o.y - o.hh - m && snake.y < o.y + o.hh + m) {
+      const m = sizeForValue(headValue()) * 0.62; // يبقى المكعب خارج الحاجز تماماً
+      if (o.kind === "cyl" || o.kind === "hex") {
+        // دفع دائري (يطابق شكل العمود)
+        const rad = Math.min(o.hw, o.hh) * 0.72 + m, dx = snake.x - o.x, dy = snake.y - o.y, d = Math.hypot(dx, dy);
+        if (d < rad && d > 1e-4) { const push = rad - d; snake.x += (dx / d) * push; snake.y += (dy / d) * push; }
+      } else if (snake.x > o.x - o.hw - m && snake.x < o.x + o.hw + m && snake.y > o.y - o.hh - m && snake.y < o.y + o.hh + m) {
         const dxl = (o.x - o.hw - m) - snake.x, dxr = (o.x + o.hw + m) - snake.x;
         const dyl = (o.y - o.hh - m) - snake.y, dyr = (o.y + o.hh + m) - snake.y;
         const px = Math.abs(dxl) < Math.abs(dxr) ? dxl : dxr;
@@ -841,16 +1148,17 @@
       for (const f of foods) {
         if (f.vx || f.vy) {
           f.x += f.vx * dt; f.y += f.vy * dt;
-          if (!inBounds(f.x, f.y)) { f.vx *= -1; f.vy *= -1; f.x += f.vx * dt; f.y += f.vy * dt; }
+          // يرتدّ عن حدود الخريطة أو الحواجز
+          if (!inBounds(f.x, f.y) || insideObstacle(f.x, f.y, f.size * 0.4)) { f.vx *= -1; f.vy *= -1; f.x += f.vx * dt * 2; f.y += f.vy * dt * 2; }
         }
       }
     }
 
     const hv = headValue(), hSize = sizeForValue(hv);
-    const headInDanger = inDanger(snake.x, snake.y); // لا تأكل وأنت داخل منطقة الخطر (وإلا لا ينقص جسمك)
     for (let i = foods.length - 1; i >= 0; i--) {
       const f = foods[i];
-      if (!headInDanger && Math.hypot(f.x - snake.x, f.y - snake.y) < (hSize + f.size) * 0.5 && f.value <= hv) {
+      // يمكن الأكل داخل الخطر؛ لكن المكعب المقطوع للتو لا يُؤكل لمدة قصيرة (noEat)
+      if (!(f.noEat && now < f.noEat) && Math.hypot(f.x - snake.x, f.y - snake.y) < (hSize + f.size) * 0.5 && f.value <= hv) {
         eatValue(f.value); spawnEatFx(f.x, f.y);
         if (authority()) foods[i] = spawnFood();
         else { foods.splice(i, 1); netSend({ t: "eat", id: f.id }); }
@@ -875,7 +1183,7 @@
       if (lastNetSend >= 0.05) { lastNetSend = 0; netTick(); }
     }
 
-    updateParticles(dt); updateEmojis(dt);
+    updateParticles(dt); updateEmojis(dt); updateRings(dt);
     updateCamera(snake.x, snake.y); updateHUD();
   }
 
@@ -936,52 +1244,68 @@
   // =====================================================================
   // الرسم
   // =====================================================================
-  function drawGround() {
-    ctx.fillStyle = "#0b1830"; ctx.fillRect(0, 0, W, H);
+  function arenaPath() {
     const R = CONFIG.WORLD;
-    ctx.fillStyle = "#13294d"; ctx.strokeStyle = "rgba(120,160,210,0.5)"; ctx.lineWidth = 3;
     ctx.beginPath();
     if (mapShape === "circle") {
-      // مضلّع يقارب الدائرة
       for (let i = 0; i <= 48; i++) { const a = (i / 48) * Math.PI * 2; const pr = project(Math.cos(a) * R, Math.sin(a) * R); i ? ctx.lineTo(pr.x, pr.y) : ctx.moveTo(pr.x, pr.y); }
     } else if (mapShape === "triangle") {
       mapTri.forEach((v, i) => { const pr = project(v.x, v.y); i ? ctx.lineTo(pr.x, pr.y) : ctx.moveTo(pr.x, pr.y); });
     } else {
       [[-R, -R], [R, -R], [R, R], [-R, R]].forEach((c, i) => { const pr = project(c[0], c[1]); i ? ctx.lineTo(pr.x, pr.y) : ctx.moveTo(pr.x, pr.y); });
     }
-    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.closePath();
+  }
+  function drawGround() {
+    ctx.fillStyle = "#050510"; ctx.fillRect(-24, -24, W + 48, H + 48); // فراغ نيون داكن
+    const R = CONFIG.WORLD;
+    // الأرضية + إطار متوهّج
+    ctx.fillStyle = "#0A0A1F"; ctx.strokeStyle = "rgba(0,212,255,0.45)"; ctx.lineWidth = 3;
+    ctx.save(); ctx.shadowColor = "rgba(0,212,255,0.6)"; ctx.shadowBlur = 14;
+    arenaPath(); ctx.fill(); ctx.stroke(); ctx.restore();
 
-    // نقاط الشبكة
-    const center = unproject(W / 2, H / 2), range = 34;
-    const gx0 = Math.floor(center.x - range), gx1 = Math.ceil(center.x + range);
-    const gy0 = Math.floor(center.y - range), gy1 = Math.ceil(center.y + range);
-    ctx.fillStyle = "rgba(120,160,210,0.16)";
-    for (let gx = gx0; gx <= gx1; gx += 4) for (let gy = gy0; gy <= gy1; gy += 4) {
-      if (!inBounds(gx, gy)) continue;
-      const p = project(gx, gy); ctx.beginPath(); ctx.arc(p.x, p.y, 1.5, 0, Math.PI * 2); ctx.fill();
+    // شبكة خطوط نيون ثابتة (داخل الساحة)
+    ctx.save();
+    arenaPath(); ctx.clip();
+    ctx.strokeStyle = "rgba(0,212,255,0.07)"; ctx.lineWidth = 1;
+    const step = 7;
+    for (let g = -R; g <= R; g += step) {
+      let p1 = project(g, -R), p2 = project(g, R);
+      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+      let p3 = project(-R, g), p4 = project(R, g);
+      ctx.beginPath(); ctx.moveTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y); ctx.stroke();
     }
+    ctx.restore();
 
-    // مناطق الخطر (دوائر حمراء على الأرض)
-    for (const dz of dangers) {
-      const pulse = 0.5 + 0.5 * Math.sin(now * 4 + dz.x);
-      ctx.save();
-      ctx.globalAlpha = 0.35 + pulse * 0.25;
-      ctx.fillStyle = "#c0203a";
-      ctx.beginPath();
-      for (let i = 0; i <= 32; i++) { const a = (i / 32) * Math.PI * 2; const pr = project(dz.x + Math.cos(a) * dz.r, dz.y + Math.sin(a) * dz.r); i ? ctx.lineTo(pr.x, pr.y) : ctx.moveTo(pr.x, pr.y); }
-      ctx.closePath(); ctx.fill();
-      ctx.globalAlpha = 0.8; ctx.strokeStyle = "#ff5d73"; ctx.lineWidth = 2; ctx.stroke();
-      ctx.restore();
-    }
+    // مناطق الخطر بأشكال مختلفة
+    for (const dz of dangers) drawDanger(dz.x, dz.y, dz.r, dz.shape || "circle", dz.rot || 0);
+    // المقذوفات المتحرّكة (مناطق خطر صغيرة)
+    for (const p of dangerProjectiles) drawDanger(p.x, p.y, p.r, "circle", 0, true);
+  }
+  function drawDanger(x, y, r, shape, rot, small) {
+    const pulse = 0.5 + 0.5 * Math.sin(now * (small ? 7 : 4) + x);
+    ctx.save();
+    ctx.globalAlpha = (small ? 0.5 : 0.35) + pulse * 0.25;
+    ctx.fillStyle = "#c0203a";
+    ctx.beginPath();
+    const pts = shape === "square" ? 4 : shape === "triangle" ? 3 : 32;
+    const a0 = shape === "circle" ? 0 : rot - Math.PI / 2, rr = shape === "circle" ? r : r * 1.25;
+    for (let i = 0; i <= pts; i++) { const a = a0 + (i / pts) * Math.PI * 2; const pr = project(x + Math.cos(a) * rr, y + Math.sin(a) * rr); i ? ctx.lineTo(pr.x, pr.y) : ctx.moveTo(pr.x, pr.y); }
+    ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 0.85; ctx.strokeStyle = "#ff5d73"; ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.stroke();
+    ctx.restore();
   }
 
   function render() {
+    const so = shakeOffset();
+    ctx.save(); ctx.translate(so.x, so.y);
     drawGround();
     for (const p of powerups) drawCard(p.x, p.y, p.size, p.type);
     if (state === "playing" && (snake.boosting || snake.speedTimer > 0)) drawBoostJet(); // تحت المكعبات
     drawParticles(true); // شعاع السرعة يُرسم تحت المكعبات
     const drawables = [];
     for (const f of foods) drawables.push({ kind: "food", x: f.x, y: f.y, size: f.size, value: f.value, depth: f.x + f.y });
+    // الحواجز بعمق مركزها — الانتقال يحدث داخل الحاجز، فما أمامه فوقه تماماً وما خلفه تحته تماماً
     for (const o of obstacles) drawables.push({ kind: "wall", o, depth: o.x + o.y });
     for (const s of bodyPositions()) drawables.push({ kind: "body", x: s.x, y: s.y, size: s.size, value: s.value, depth: s.x + s.y });
     // الثعابين البعيدة
@@ -991,14 +1315,18 @@
     }
     drawables.sort((a, b) => a.depth - b.depth);
     for (const d of drawables) {
-      if (d.kind === "wall") drawBox(d.o.x, d.o.y, d.o.hw, d.o.hh, d.o.h, d.o.color);
-      else drawCube(d.x, d.y, d.size, { color: colorForValue(d.value), label: fmtNum(d.value) });
+      if (d.kind === "wall") drawObstacle(d.o);
+      else if (d.kind === "food") drawCube(d.x, d.y, d.size * (1 + 0.05 * Math.sin(now * 3 + d.x)), d.value); // نبض خفيف للطعام
+      else drawCube(d.x, d.y, d.size, d.value);
     }
     drawParticles(false); // جسيمات الأكل/الدمج فوق المكعبات
+    drawRings();
     // أسماء ورموز الثعابين البعيدة
     for (const r of remotes.values()) drawRemoteLabel(r);
     drawArrow(); drawNameLabel(); drawEmojis();
     if (snake.radarTimer > 0) drawRadar();
+    drawFlash();
+    ctx.restore();
   }
   function drawRemoteLabel(r) {
     if (r.x == null) return;
@@ -1018,13 +1346,15 @@
     const c = project(snake.x, snake.y);
     const ah = project(snake.x + Math.cos(snake.angle), snake.y + Math.sin(snake.angle));
     let dx = ah.x - c.x, dy = ah.y - c.y; const len = Math.hypot(dx, dy) || 1; dx /= len; dy /= len;
-    const x0 = c.x + dx * 18, y0 = c.y + dy * 18, x1 = c.x + dx * 50, y1 = c.y + dy * 50;
-    ctx.save(); ctx.shadowColor = "rgba(80,210,255,0.9)"; ctx.shadowBlur = 9;
+    // يبدأ السهم دائماً خارج المكعب (حسب حجم الرأس)
+    const gap = sizeForValue(headValue()) * CONFIG.SCALE * 1.15 + 10, L = gap + 20;
+    const x0 = c.x + dx * gap, y0 = c.y + dy * gap, x1 = c.x + dx * L, y1 = c.y + dy * L;
+    ctx.save(); ctx.shadowColor = "rgba(80,210,255,0.9)"; ctx.shadowBlur = 8;
     const g = ctx.createLinearGradient(x0, y0, x1, y1);
     g.addColorStop(0, "rgba(80,210,255,0)"); g.addColorStop(1, "rgba(120,230,255,0.95)");
-    ctx.strokeStyle = g; ctx.lineWidth = 5; ctx.lineCap = "round";
+    ctx.strokeStyle = g; ctx.lineWidth = 4; ctx.lineCap = "round";
     ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
-    const px = -dy, py = dx, hw = 8, hl = 13; ctx.fillStyle = "rgba(150,235,255,0.98)";
+    const px = -dy, py = dx, hw = 6, hl = 10; ctx.fillStyle = "rgba(150,235,255,0.98)";
     ctx.beginPath(); ctx.moveTo(x1 + dx * 4, y1 + dy * 4);
     ctx.lineTo(x1 - dx * hl + px * hw, y1 - dy * hl + py * hw);
     ctx.lineTo(x1 - dx * hl - px * hw, y1 - dy * hl - py * hw);
@@ -1091,8 +1421,12 @@
     document.getElementById("boost-bar-fill").style.width = Math.round(snake.stamina * 100) + "%";
     const bw = document.getElementById("boost-bar-wrap");
     bw.classList.toggle("boosting", snake.boosting);
-    bw.classList.toggle("speedcube", snake.speedTimer > 0);
-    document.getElementById("boost-bar-label").textContent = snake.speedTimer > 0 ? "×2" : "⚡";
+    bw.classList.toggle("empty", snake.exhausted);
+    // طبقة ×2 المستقلّة فوق شريط الطاقة، تتناقص وحدها
+    const sc = document.getElementById("speedcube-fill");
+    if (snake.speedTimer > 0) { sc.style.display = "block"; sc.style.width = (snake.speedTimer / CONFIG.SPEEDCUBE_TIME * 100) + "%"; }
+    else sc.style.display = "none";
+    document.getElementById("boost-bar-label").textContent = snake.exhausted ? "…" : "⚡";
     const entries = [{ id: myId, name: playerName, head: headValue(), me: true }];
     if (online) for (const r of remotes.values()) entries.push({ id: r.id, name: r.name || "?", head: r.head || 2, me: false });
     entries.sort((a, b) => b.head - a.head);
@@ -1230,7 +1564,7 @@
   let openTimer = null;
   function armTimeout(statusFn) {
     clearTimeout(openTimer);
-    openTimer = setTimeout(() => { if (!online) statusFn("تعذّر الاتصال بخادم اللعب — تحقّق من الإنترنت وحاول ثانية", true); }, 9000);
+    openTimer = setTimeout(() => { if (!online) statusFn(t("netTimeout"), true); }, 9000);
   }
 
   function showRoomCodeHud(code) {
@@ -1242,7 +1576,7 @@
 
   // الزرّ الرئيسي
   window.doPlayMulti = function () {
-    if (!peerLoaded()) { mStatus("PeerJS — " + t("connecting"), true); return; }
+    if (!peerLoaded()) { mStatus(t("netTimeout"), true); return; }
     setName();
     if (roomLocked) {
       if (online && isHost) { hostLobby = false; showRoomCodeHud(roomCode); beginPlay("host"); } // ابدأ اللعب كمضيف
@@ -1253,7 +1587,7 @@
   // إنشاء غرفة خاصة فوراً عند إغلاق القفل (لوبي قبل اللعب)
   function openLobby() {
     if (online && isHost) return;
-    if (!peerLoaded()) { mStatus("PeerJS", true); return; }
+    if (!peerLoaded()) { mStatus(t("netTimeout"), true); return; }
     setName(); hostLobby = true; mStatus(t("connecting"));
     startHost(0, genCode());
   }
@@ -1455,12 +1789,13 @@
   }
 
   // ---- رسائل ----
-  function worldMsg() { return { t: "world", mapShape, mapTri, obstacles, dangers, level: gameLevel }; }
+  function worldMsg() { return { t: "world", mapShape, mapTri, obstacles, dangers, level: gameLevel, shape: blockShape }; }
   function itemsMsg() {
     return {
       t: "items",
       foods: foods.map((f) => ({ id: f.id, x: +f.x.toFixed(2), y: +f.y.toFixed(2), value: f.value })),
       powerups: powerups.map((p) => ({ id: p.id, x: +p.x.toFixed(2), y: +p.y.toFixed(2), type: p.type })),
+      dprojs: dangerProjectiles.map((p) => ({ x: +p.x.toFixed(1), y: +p.y.toFixed(1), r: p.r })),
     };
   }
   function bodyMsg() { return bodyPositions().map((b) => ({ x: +b.x.toFixed(2), y: +b.y.toFixed(2), v: b.value })); }
@@ -1494,8 +1829,8 @@
   // ---- استقبال (العميل) ----
   function handleClientMsg(msg) {
     switch (msg.t) {
-      case "world": mapShape = msg.mapShape; mapTri = msg.mapTri; obstacles = msg.obstacles || []; dangers = msg.dangers || []; gameLevel = msg.level || 1; document.getElementById("level").textContent = gameLevel; break;
-      case "items": foods = (msg.foods || []).map((f) => ({ id: f.id, x: f.x, y: f.y, value: f.value, size: sizeForValue(f.value), vx: 0, vy: 0 })); powerups = (msg.powerups || []).map((p) => ({ id: p.id, x: p.x, y: p.y, type: p.type, size: CONFIG.BASE_SIZE * 2.0 })); break;
+      case "world": mapShape = msg.mapShape; mapTri = msg.mapTri; obstacles = msg.obstacles || []; dangers = msg.dangers || []; gameLevel = msg.level || 1; if (msg.shape) blockShape = msg.shape; document.getElementById("level").textContent = gameLevel; break;
+      case "items": foods = (msg.foods || []).map((f) => ({ id: f.id, x: f.x, y: f.y, value: f.value, size: sizeForValue(f.value), vx: 0, vy: 0 })); powerups = (msg.powerups || []).map((p) => ({ id: p.id, x: p.x, y: p.y, type: p.type, size: CONFIG.BASE_SIZE * 2.0 })); dangerProjectiles = (msg.dprojs || []).map((p) => ({ x: p.x, y: p.y, r: p.r, vx: 0, vy: 0, turn: 0, age: 0 })); break;
       case "snakes": applySnakes(msg.list || []); break;
       case "notify": notify(msg.text); break;
       case "emoji": { if (msg.id === myId) break; const r = remotes.get(msg.id); if (r) { r.emojiEm = msg.em; r.emojiLife = 2; } break; }
@@ -1525,7 +1860,9 @@
     const dt = Math.min((t - lastT) / 1000, 0.05); lastT = t; now += dt;
     if (state === "playing") update(dt);
     else {
-      updateParticles(dt); updateEmojis(dt);
+      updateParticles(dt); updateEmojis(dt); updateRings(dt);
+      if (state === "dying") { deathTimer -= dt; if (deathTimer <= 0) finalizeOver(); }
+      if (state === "won") fireworksTick(dt); // ألعاب نارية
       // المضيف يواصل توزيع العالم حتى لو مات ثعبانه حتى لا يتجمّد العملاء
       if (isHost && online) { lastNetSend += dt; if (lastNetSend >= 0.05) { lastNetSend = 0; hostBroadcast(snakesMsg()); if ((++netItemsCounter) % 4 === 0) hostBroadcast(itemsMsg()); } }
     }
@@ -1543,11 +1880,37 @@
   let deferredPrompt = null;
   addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferredPrompt = e; document.getElementById("install-btn").classList.remove("hidden"); });
   window.installApp = function () {
-    if (!deferredPrompt) { notify("افتح قائمة المتصفح ثم \"إضافة إلى الشاشة الرئيسية\""); return; }
+    if (!deferredPrompt) { notify(t("installHint")); return; }
     deferredPrompt.prompt();
     deferredPrompt.userChoice.finally(() => { deferredPrompt = null; document.getElementById("install-btn").classList.add("hidden"); });
   };
   addEventListener("appinstalled", () => document.getElementById("install-btn").classList.add("hidden"));
+
+  // التعليمات
+  window.openHelp = function () { document.getElementById("help-screen").classList.remove("hidden"); };
+  window.closeHelp = function () { document.getElementById("help-screen").classList.add("hidden"); };
+  // الرجوع للواجهة الرئيسية من شاشتي الفوز/الخسارة
+  window.toMenu = function () {
+    document.getElementById("over-screen").classList.add("hidden");
+    document.getElementById("win-screen").classList.add("hidden");
+    backToMenu();
+  };
+  // إغلاق اللعبة (المتصفح/التطبيق)
+  window.quitGame = function () {
+    try { window.close(); } catch (e) {}
+    try { window.open("", "_self"); window.close(); } catch (e) {}
+    setTimeout(() => { try { location.href = "about:blank"; } catch (e) {} }, 120);
+  };
+
+  // اختيار شكل المكعبات (درب‑داون جانبي)
+  const SHAPE_ICONS = { cube: "⬛", sphere: "⚫", cylinder: "🛢️", gem: "🔷", hex: "⬡", pyramid: "🔺", star: "⭐" };
+  window.toggleShapeDD = function () { document.getElementById("shape-options").classList.toggle("hidden"); };
+  window.selectShape = function (s) { blockShape = s; try { localStorage.setItem("snake2048_shape", s); } catch (e) {} updateShapeUI(); document.getElementById("shape-options").classList.add("hidden"); };
+  function updateShapeUI() {
+    document.getElementById("shape-toggle").textContent = SHAPE_ICONS[blockShape] || "⬛";
+    document.querySelectorAll("#shape-options .shape-btn").forEach((b) => b.classList.toggle("active", b.dataset.shape === blockShape));
+  }
+  updateShapeUI();
 
   buildPowers();
   gameLevel = 1; resetSnake(); initItems(); updateCamera(0, 0);

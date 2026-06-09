@@ -4,11 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Snake 2048</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&family=Inter:wght@300;400;500&family=Cairo:wght@400;700;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 
   <!-- PWA: قابل للتثبيت كتطبيق -->
   <link rel="manifest" href="manifest.json" />
-  <meta name="theme-color" content="#0b1830" />
+  <meta name="theme-color" content="#050510" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -17,12 +20,13 @@
   <link rel="apple-touch-icon" href="icon.svg" />
 </head>
 <body>
+  <canvas id="bg-stars"></canvas>
   <canvas id="game"></canvas>
 
   <!-- HUD: إحصائيات قابلة للطيّ + شريط الطاقة -->
   <div id="hud">
-    <div id="score-box" class="panel-dd">
-      <div class="dd-head" onclick="toggleStats()">
+    <div id="score-box" class="panel-dd" onclick="toggleStats()">
+      <div class="dd-head">
         <span class="dd-title" data-i18n="stats">إحصائياتك</span>
         <span class="dd-arrow" id="stats-arrow">▾</span>
       </div>
@@ -36,6 +40,7 @@
       </div>
       <div id="boost-bar-wrap">
         <div id="boost-bar-fill"></div>
+        <div id="speedcube-fill"></div>
         <span id="boost-bar-label">⚡</span>
       </div>
     </div>
@@ -48,8 +53,8 @@
   </div>
 
   <!-- المتصدّرون: درب‑داون قابل للطيّ -->
-  <div id="leaderboard" class="panel-dd">
-    <div class="dd-head" onclick="toggleLB()">
+  <div id="leaderboard" class="panel-dd" onclick="toggleLB()">
+    <div class="dd-head">
       <span class="dd-title" data-i18n="leaderboard">المتصدّرون</span>
       <span class="dd-arrow" id="lb-arrow">▾</span>
     </div>
@@ -58,20 +63,45 @@
 
   <!-- ===== شاشة البداية ===== -->
   <div id="start-screen" class="overlay">
-    <div class="panel">
-      <div class="title-row">
-        <h1>Snake 2048</h1>
-        <div id="lang-dd" class="lang-dd">
-          <button id="lang-btn" type="button" onclick="toggleLangMenu()">🌐 <span id="lang-current">EN</span></button>
-          <div id="lang-menu" class="lang-menu hidden">
-            <input id="lang-search" type="text" oninput="filterLangs()" />
-            <ul id="lang-list"></ul>
-          </div>
+    <div class="panel menu-panel">
+      <button id="help-btn" class="corner-btn corner-start" onclick="openHelp()" data-i18n-title="help">❓</button>
+      <div id="lang-dd" class="lang-dd corner">
+        <button id="lang-btn" type="button" onclick="toggleLangMenu()">🌐 <span id="lang-current">EN</span></button>
+        <div id="lang-menu" class="lang-menu hidden">
+          <input id="lang-search" type="text" oninput="filterLangs()" />
+          <ul id="lang-list"></ul>
         </div>
+      </div>
+
+      <div class="logo-block">
+        <div class="logo-ring" onclick="installApp()" data-i18n-title="hInstall" title="Install">
+          <svg class="snake-logo" viewBox="0 0 64 64" width="58" height="58" aria-hidden="true">
+            <polygon points="32,7 57,21 32,35 7,21" fill="#103a5c" stroke="#00D4FF" stroke-width="1.6"/>
+            <polygon points="7,21 32,35 32,59 7,45" fill="#0a2236" stroke="#00D4FF" stroke-width="1.1"/>
+            <polygon points="57,21 32,35 32,59 57,45" fill="#0d2c47" stroke="#00D4FF" stroke-width="1.1"/>
+            <polygon points="32,7 44,14 32,21 20,14" fill="#1b5f8c" opacity="0.7"/>
+          </svg>
+          <span class="dl-badge">⬇</span>
+        </div>
+        <h1 class="game-title"><span class="t-snake">SNAKE</span><span class="t-2048">2048</span></h1>
       </div>
 
       <input id="name-input" type="text" maxlength="14" autocomplete="off"/>
       <button id="install-btn" class="ghost-btn hidden" onclick="installApp()" data-i18n="install">📲 ثبّت التطبيق</button>
+
+      <div id="shape-dd">
+        <span class="shape-label" data-i18n="shape">الشكل</span>
+        <button id="shape-toggle" class="shape-btn active" onclick="toggleShapeDD()">⬛</button>
+        <div id="shape-options" class="hidden">
+          <button class="shape-btn" data-shape="cube" onclick="selectShape('cube')">⬛</button>
+          <button class="shape-btn" data-shape="sphere" onclick="selectShape('sphere')">⚫</button>
+          <button class="shape-btn" data-shape="cylinder" onclick="selectShape('cylinder')">🛢️</button>
+          <button class="shape-btn" data-shape="gem" onclick="selectShape('gem')">🔷</button>
+          <button class="shape-btn" data-shape="hex" onclick="selectShape('hex')">⬡</button>
+          <button class="shape-btn" data-shape="pyramid" onclick="selectShape('pyramid')">🔺</button>
+          <button class="shape-btn" data-shape="star" onclick="selectShape('star')">⭐</button>
+        </div>
+      </div>
 
       <!-- وضع منفرد / جماعي (أيقونات) -->
       <div id="mode-switch">
@@ -114,6 +144,8 @@
           </div>
         </div>
       </div>
+
+      <button id="quit-btn" class="ghost-btn quit-btn" onclick="quitGame()">✕ <span data-i18n="close">إغلاق</span></button>
     </div>
   </div>
 
@@ -124,6 +156,7 @@
       <p><span data-i18n="best">أعلى رقم</span>: <span id="final-best">2</span><br/>
          <span data-i18n="score">النقاط</span>: <span id="final-score">0</span></p>
       <button id="restart-btn" class="main-btn" data-i18n="restart">إعادة اللعب</button>
+      <button class="ghost-btn over-menu" onclick="toMenu()" data-i18n="exit">الخروج للقائمة</button>
     </div>
   </div>
 
@@ -135,6 +168,67 @@
       <p class="winner-name"><span id="win-name">أنت</span></p>
       <p data-i18n="winNote">🎁 الجائزة: 3 شحنات مضاعفة — انقرها أو اضغط E</p>
       <button id="win-restart-btn" class="main-btn" data-i18n="play">ابدأ اللعب</button>
+      <button class="ghost-btn over-menu" onclick="toMenu()" data-i18n="exit">الخروج للقائمة</button>
+    </div>
+  </div>
+
+  <!-- ===== شاشة التعليمات ===== -->
+  <div id="help-screen" class="overlay hidden">
+    <div class="panel help-panel">
+      <button class="close-x" onclick="closeHelp()" aria-label="close">✕</button>
+      <h1 data-i18n="howTitle">كيف تلعب</h1>
+      <div class="help-body">
+        <section>
+          <h3 data-i18n="hIdea">الفكرة</h3>
+          <p class="idea-line" data-i18n="hSolo"></p>
+          <p class="idea-line" data-i18n="hMulti"></p>
+          <p class="idea-line" data-i18n="hAvoid"></p>
+        </section>
+
+        <section>
+          <h3 data-i18n="hModes">الأوضاع</h3>
+          <div class="chip-row">
+            <span class="chip">👤</span>
+            <span class="chip">👥 🔓 <b data-i18n="mPublic"></b></span>
+            <span class="chip">👥 🔒 <b data-i18n="mPrivate"></b></span>
+          </div>
+        </section>
+
+        <section>
+          <h3 data-i18n="hControls">التحكّم</h3>
+          <table class="help-table">
+            <thead><tr><th></th><th>💻</th><th>📱</th></tr></thead>
+            <tbody>
+              <tr><td data-i18n="cSteer"></td><td>🖱 / ⬅➡</td><td>🕹️</td></tr>
+              <tr><td data-i18n="cBoost"></td><td>Space</td><td>⚡ / 🕹️↑</td></tr>
+              <tr><td data-i18n="leaderboard"></td><td>Tab</td><td>👆</td></tr>
+              <tr><td data-i18n="stats"></td><td>0</td><td>👆</td></tr>
+              <tr><td data-i18n="cPause"></td><td>Esc</td><td>◀</td></tr>
+              <tr><td data-i18n="cEmoji"></td><td>1–5</td><td>👆</td></tr>
+              <tr><td data-i18n="cCharge"></td><td>E</td><td>👆</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section>
+          <h3 data-i18n="hPowers">القوى</h3>
+          <table class="help-table powers-table">
+            <tbody>
+              <tr><td>⚡</td><td data-i18n="pSpeed"></td><td data-i18n="pSpeedTxt"></td></tr>
+              <tr><td>×2</td><td data-i18n="pDouble"></td><td data-i18n="pDoubleTxt"></td></tr>
+              <tr><td>÷2</td><td data-i18n="pHalf"></td><td data-i18n="pHalfTxt"></td></tr>
+              <tr><td>📡</td><td data-i18n="pRadar"></td><td data-i18n="pRadarTxt"></td></tr>
+              <tr><td>⚠️</td><td data-i18n="pDanger"></td><td data-i18n="pDangerTxt"></td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section>
+          <h3 data-i18n="hInstall">تثبيت كتطبيق</h3>
+          <p data-i18n="hInstallTxt"></p>
+        </section>
+      </div>
+      <button class="main-btn" onclick="closeHelp()" data-i18n="close">إغلاق</button>
     </div>
   </div>
 
@@ -171,6 +265,7 @@
     <button data-emoji="💀">💀<span class="kbd">5</span></button>
   </div>
 
+  <script defer src="particles.js"></script>
   <script defer src="lang.js"></script>
   <!-- PeerJS للأونلاين فقط؛ defer حتى لا يعطّل اللعب الفردي بدون إنترنت -->
   <script defer src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
