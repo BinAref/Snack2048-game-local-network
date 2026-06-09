@@ -21,7 +21,7 @@
 
     FOOD_COUNT: 95, POWERUP_COUNT: 8,
     MOVING_FOOD_RATIO: 0.18,      // نسبة الطعام المتحرك
-    DANGER_SEVER_INTERVAL: 0.45,  // كل كم ثانية يُقطع مكعب داخل منطقة الخطر
+    DANGER_SEVER_INTERVAL: 2.0,   // كل ثانيتين يسقط آخر مكعب داخل منطقة الخطر
 
     MAP_INTERVAL: 300,            // تغيير الخريطة كل 5 دقائق
     REIGN_STEP: 300,              // كل 5 دقائق في الصدارة = ميدالية
@@ -419,6 +419,20 @@
     }
   }
   function spawnMergeFx() { spawnBurst(snake.x, snake.y, "#fff6c2", 14); }
+  // أثر السرعة: جسيمات تتطاير خلف الثعبان أثناء الاندفاع
+  function spawnBoostTrail() {
+    const col = snake.speedTimer > 0 ? "#ffb020" : "#19d3ff";
+    const body = bodyPositions();
+    for (let k = 0; k < body.length; k += 2) {
+      if (Math.random() > 0.5) continue;
+      const b = body[k];
+      particles.push({
+        x: b.x + rand(-0.3, 0.3), y: b.y + rand(-0.3, 0.3),
+        vx: -Math.cos(snake.angle) * 7 + rand(-3, 3), vy: -Math.sin(snake.angle) * 7 + rand(-3, 3),
+        life: 0.45, max: 0.45, color: col, size: rand(2, 5),
+      });
+    }
+  }
   function spawnEatFx(x, y) { spawnBurst(x, y, "#bfe9ff", 6); }
   function spawnDeathFx() {
     for (const s of bodyPositions()) spawnBurst(s.x, s.y, colorForValue(s.value), 14);
@@ -511,7 +525,6 @@
   let hostConn = null;        // اتصال العميل بالمضيف
   const clientConns = new Map(); // عند المضيف: id -> conn
   const remotes = new Map();  // id -> لاعب بعيد {name,x,y,angle,head,boosting,score,body,emoji,emojiT,color,seen}
-  let roomPassword = "";
   let lastNetSend = 0;
   const SNAKE_COLORS = ["#4fd1ff", "#ff8c42", "#37d67a", "#d94f9a", "#ffd23f", "#9b5de5", "#ff5d73"];
   const colorForId = (id) => SNAKE_COLORS[Math.abs(hashStr(id)) % SNAKE_COLORS.length];
@@ -661,6 +674,7 @@
 
     const step = currentSpeed() * dt;
     snake.x += Math.cos(snake.angle) * step; snake.y += Math.sin(snake.angle) * step;
+    if (snake.boosting || snake.speedTimer > 0) spawnBoostTrail();
 
     // الخروج من الخريطة = موت
     if (!inBounds(snake.x, snake.y)) { gameOver(); return; }
@@ -846,9 +860,30 @@
       else drawCube(d.x, d.y, d.size, { color: colorForValue(d.value), label: fmtNum(d.value) });
     }
     drawParticles();
+    if (snake.boosting || snake.speedTimer > 0) drawBoostAura();
     // أسماء ورموز الثعابين البعيدة
     for (const r of remotes.values()) drawRemoteLabel(r);
     drawArrow(); drawNameLabel(); drawGauges(); drawEmojis();
+  }
+  // هالة سرعة نابضة حول الرأس + خطوط اندفاع
+  function drawBoostAura() {
+    const c = project(snake.x, snake.y);
+    const col = snake.speedTimer > 0 ? "255,176,32" : "25,211,255";
+    const rr = sizeForValue(headValue()) * CONFIG.SCALE * (1.4 + 0.25 * Math.sin(now * 18));
+    ctx.save();
+    const g = ctx.createRadialGradient(c.x, c.y, rr * 0.2, c.x, c.y, rr);
+    g.addColorStop(0, `rgba(${col},0.45)`); g.addColorStop(1, `rgba(${col},0)`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, c.y, rr, 0, Math.PI * 2); ctx.fill();
+    // خطوط اندفاع خلف الرأس
+    const ah = project(snake.x + Math.cos(snake.angle), snake.y + Math.sin(snake.angle));
+    let dx = ah.x - c.x, dy = ah.y - c.y; const len = Math.hypot(dx, dy) || 1; dx /= len; dy /= len;
+    ctx.strokeStyle = `rgba(${col},0.5)`; ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i++) {
+      const off = (i - 1) * 10, ox = -dy * off, oy = dx * off;
+      const s = 18 + (now * 120 % 26);
+      ctx.beginPath(); ctx.moveTo(c.x - dx * s + ox, c.y - dy * s + oy); ctx.lineTo(c.x - dx * (s + 14) + ox, c.y - dy * (s + 14) + oy); ctx.stroke();
+    }
+    ctx.restore();
   }
   function drawRemoteLabel(r) {
     if (r.x == null) return;
@@ -950,8 +985,13 @@
     document.getElementById("panel-solo").classList.toggle("hidden", mode !== "solo");
     document.getElementById("panel-multi").classList.toggle("hidden", mode !== "multi");
   };
-  window.togglePassword = function () {
-    document.getElementById("host-password").classList.toggle("hidden", !document.getElementById("use-password").checked);
+  window.onPrivateToggle = function () {
+    const priv = document.getElementById("private-room").checked;
+    document.getElementById("room-hint").textContent = priv
+      ? "غرفة خاصة: ستحصل على رمز ترسله لأصدقائك."
+      : "غرفة عامة: يدخلها أي شخص مباشرة بدون رمز.";
+    document.getElementById("play-multi-btn").textContent = priv ? "أنشئ غرفة خاصة" : "العب أونلاين";
+    document.getElementById("room-code-wrap").classList.add("hidden");
   };
   window.copyCode = function () {
     const code = document.getElementById("room-code-display").textContent;
@@ -961,30 +1001,47 @@
   function genCode() { const c = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let s = ""; for (let i = 0; i < 5; i++) s += c[Math.floor(Math.random() * c.length)]; return s; }
   function peerLoaded() { return typeof Peer !== "undefined"; }
 
-  // ---- المضيف ----
-  window.doHost = function () {
+  const PUBLIC_CODE = "PUBLIC"; // الغرفة العامة المشتركة (رمز ثابت)
+  function setName() { const nm = (document.getElementById("name-input").value || "").trim(); playerName = nm || "أنت"; }
+
+  // الزرّ الرئيسي: عام (دخول/استضافة تلقائي) أو خاص (إنشاء برمز)
+  window.doPlayMulti = function () {
     const s = document.getElementById("host-status"); s.classList.remove("error");
     if (!peerLoaded()) { s.classList.add("error"); s.textContent = "تعذّر تحميل PeerJS (تحقّق من الإنترنت)"; return; }
-    const nm = (document.getElementById("name-input").value || "").trim(); playerName = nm || "أنت";
-    roomPassword = document.getElementById("use-password").checked ? (document.getElementById("host-password").value || "") : "";
-    s.textContent = "جارٍ إنشاء الغرفة…";
-    startHost(0);
+    setName();
+    if (document.getElementById("private-room").checked) { s.textContent = "جارٍ إنشاء الغرفة…"; startHost(0, genCode()); }
+    else { s.textContent = "جارٍ الدخول للغرفة العامة…"; startPublic(); }
   };
-  function startHost(attempt) {
-    roomCode = genCode();
-    peer = new Peer(PEER_PREFIX + roomCode, { debug: 1 });
-    peer.on("open", (id) => {
-      myId = id; isHost = true; online = true;
-      document.getElementById("room-code-wrap").classList.remove("hidden");
-      document.getElementById("room-code-display").textContent = roomCode;
-      document.getElementById("host-status").textContent = "الغرفة جاهزة — شارك الكود!";
-      peer.on("connection", onHostConnection);
-      beginPlay("host");
-    });
+
+  // الغرفة العامة: حاول أن تكون المضيف، وإن كان موجوداً فانضمّ إليه
+  function startPublic() {
+    peer = new Peer(PEER_PREFIX + PUBLIC_CODE, { debug: 1 });
+    peer.on("open", (id) => { becomeHost(id, null); document.getElementById("host-status").textContent = "أنت مضيف الغرفة العامة 🌍"; });
     peer.on("error", (e) => {
-      if (e.type === "unavailable-id" && attempt < 6) { try { peer.destroy(); } catch (_) {} startHost(attempt + 1); }
+      if (e.type === "unavailable-id") { try { peer.destroy(); } catch (_) {} joinRoom(PUBLIC_CODE, document.getElementById("host-status")); }
       else { const s = document.getElementById("host-status"); s.classList.add("error"); s.textContent = "خطأ: " + e.type; }
     });
+  }
+
+  // غرفة خاصة برمز
+  function startHost(attempt, code) {
+    roomCode = code;
+    peer = new Peer(PEER_PREFIX + roomCode, { debug: 1 });
+    peer.on("open", (id) => {
+      becomeHost(id, roomCode);
+      document.getElementById("room-code-wrap").classList.remove("hidden");
+      document.getElementById("room-code-display").textContent = roomCode;
+      document.getElementById("host-status").textContent = "الغرفة جاهزة — شارك الرمز!";
+    });
+    peer.on("error", (e) => {
+      if (e.type === "unavailable-id" && attempt < 6) { try { peer.destroy(); } catch (_) {} startHost(attempt + 1, genCode()); }
+      else { const s = document.getElementById("host-status"); s.classList.add("error"); s.textContent = "خطأ: " + e.type; }
+    });
+  }
+  function becomeHost(id) {
+    myId = id; isHost = true; online = true;
+    peer.on("connection", onHostConnection);
+    beginPlay("host");
   }
   function onHostConnection(conn) {
     conn.on("data", (d) => handleHostMsg(conn.peer, d));
@@ -993,8 +1050,6 @@
       if (r) { const t = "👋 " + r.name + " غادر"; notify(t); hostBroadcast({ t: "notify", text: t }); }
     });
     conn.on("open", () => {
-      const pass = (conn.metadata && conn.metadata.password) || "";
-      if (roomPassword && pass !== roomPassword) { try { conn.send({ t: "denied" }); } catch (_) {} setTimeout(() => { try { conn.close(); } catch (_) {} }, 250); return; }
       clientConns.set(conn.peer, conn);
       const nm = (conn.metadata && conn.metadata.name) || "لاعب";
       const r = remotes.get(conn.peer) || { id: conn.peer, color: colorForId(conn.peer) }; r.name = nm; remotes.set(conn.peer, r);
@@ -1003,33 +1058,35 @@
     });
   }
 
-  // ---- العميل ----
+  // ---- الانضمام (عميل) ----
   window.doJoin = function () {
     const s = document.getElementById("join-status"); s.classList.remove("error");
     if (!peerLoaded()) { s.classList.add("error"); s.textContent = "تعذّر تحميل PeerJS"; return; }
     const code = (document.getElementById("join-code-input").value || "").trim().toUpperCase();
-    if (!code) { s.classList.add("error"); s.textContent = "أدخل كود الغرفة"; return; }
-    const nm = (document.getElementById("name-input").value || "").trim(); playerName = nm || "أنت";
-    const pass = document.getElementById("join-password").value || "";
-    s.textContent = "جارٍ الاتصال…";
+    if (!code) { s.classList.add("error"); s.textContent = "الصق رمز الغرفة"; return; }
+    setName();
+    joinRoom(code, s);
+  };
+  function joinRoom(code, statusEl) {
+    statusEl.classList.remove("error"); statusEl.textContent = "جارٍ الاتصال…";
     peer = new Peer({ debug: 1 });
     peer.on("open", () => {
       myId = peer.id;
-      const conn = peer.connect(PEER_PREFIX + code, { metadata: { name: playerName, password: pass }, reliable: true });
+      const conn = peer.connect(PEER_PREFIX + code, { metadata: { name: playerName }, reliable: true });
       conn.on("data", (d) => handleClientMsg(d));
       conn.on("open", () => {
         hostConn = conn; isHost = false; online = true;
-        document.getElementById("join-status").textContent = "متصل ✓";
+        statusEl.textContent = "متصل ✓";
         beginPlay("client");
         netSend({ t: "hello", name: playerName });
       });
       conn.on("close", () => { if (online) { notify("انقطع الاتصال بالمضيف"); backToMenu(); } });
     });
     peer.on("error", (e) => {
-      const s2 = document.getElementById("join-status"); s2.classList.add("error");
-      s2.textContent = e.type === "peer-unavailable" ? "الغرفة غير موجودة" : "خطأ: " + e.type;
+      statusEl.classList.add("error");
+      statusEl.textContent = e.type === "peer-unavailable" ? "الغرفة غير موجودة" : "خطأ: " + e.type;
     });
-  };
+  }
 
   function backToMenu() {
     online = false; isHost = false; state = "menu"; remotes.clear(); hostConn = null; clientConns.clear();

@@ -192,6 +192,8 @@ html, body {
   text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px;
 }
 
+.hint-small { font-size: 12px; color: #9fc0e6; margin: -4px 0 4px; text-align: center; }
+
 /* divider */
 .divider {
   width: 80%; height: 1px;

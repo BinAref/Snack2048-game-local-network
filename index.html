@@ -61,42 +61,32 @@
       <!-- Multi -->
       <div id="panel-multi" class="sub-panel hidden">
 
-        <!-- استضافة -->
-        <div id="section-host">
-          <div class="section-title">استضافة غرفة</div>
+        <!-- سويتش غرفة خاصة -->
+        <div class="toggle-row">
+          <span class="toggle-label">غرفة خاصة (برمز)</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="private-room" onchange="onPrivateToggle()"/>
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div id="room-hint" class="hint-small">غرفة عامة: يدخلها أي شخص مباشرة بدون رمز.</div>
 
-          <!-- سويتش كلمة سر -->
-          <div class="toggle-row">
-            <span class="toggle-label">كلمة سر</span>
-            <label class="toggle-switch">
-              <input type="checkbox" id="use-password" onchange="togglePassword()"/>
-              <span class="slider"></span>
-            </label>
-          </div>
+        <button id="play-multi-btn" class="main-btn" onclick="doPlayMulti()">العب أونلاين</button>
 
-          <input id="host-password" type="text" maxlength="20"
-                 placeholder="كلمة السر" autocomplete="off"
-                 class="hidden"/>
-
-          <button id="host-btn" class="main-btn" onclick="doHost()">أنشئ غرفة</button>
-
-          <div id="room-code-wrap" class="hidden">
-            <div class="room-label">كود الغرفة</div>
-            <div id="room-code-display"></div>
-            <button class="small-btn" onclick="copyCode()">نسخ الكود</button>
-            <div id="host-status" class="status-msg">في انتظار اللاعبين…</div>
-          </div>
+        <div id="room-code-wrap" class="hidden">
+          <div class="room-label">رمز الغرفة — أرسله لأصدقائك</div>
+          <div id="room-code-display"></div>
+          <button class="small-btn" onclick="copyCode()">نسخ الرمز</button>
+          <div id="host-status" class="status-msg"></div>
         </div>
 
         <div class="divider"></div>
 
-        <!-- انضمام -->
+        <!-- انضمام برمز صديق -->
         <div id="section-join">
-          <div class="section-title">انضمام</div>
-          <input id="join-code-input" type="text" maxlength="40"
-                 placeholder="كود الغرفة" autocomplete="off"/>
-          <input id="join-password" type="text" maxlength="20"
-                 placeholder="كلمة السر (اتركها فارغة إن لم تكن هناك)" autocomplete="off"/>
+          <div class="section-title">انضمام برمز صديق</div>
+          <input id="join-code-input" type="text" maxlength="12"
+                 placeholder="الصق رمز الغرفة" autocomplete="off"/>
           <button id="join-btn" class="main-btn" onclick="doJoin()">انضمام</button>
           <div id="join-status" class="status-msg"></div>
         </div>
