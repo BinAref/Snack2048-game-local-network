@@ -94,6 +94,22 @@ html, body {
 .charge-btn:active { transform: translateY(2px); }
 .charge-btn:disabled { opacity: .35; cursor: default; }
 
+/* قوى BinAref الخاصة (يسار) */
+#powers {
+  position: fixed; left: 12px; top: 50%; transform: translateY(-50%);
+  z-index: 11; display: flex; flex-direction: column; gap: 8px;
+}
+#powers.hidden { display: none; }
+.power-btn {
+  width: 54px; height: 54px; border-radius: 12px; cursor: pointer;
+  background: linear-gradient(160deg, #7b5de5, #4a2fb0);
+  border: 2px solid #cdbdff; color: #fff; font-weight: 800; font-size: 16px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+}
+.power-btn .kbd { display: block; margin-top: 2px; font-size: 10px; font-weight: 800; color: #2a1a5a; background: #cdbdff; border-radius: 6px; padding: 0 4px; }
+.power-btn:active { transform: translateY(2px); }
+
 /* إشعارات */
 #notifications {
   position: fixed; top: 64px; left: 50%; transform: translateX(-50%);
@@ -170,6 +186,54 @@ html, body {
   .panel { padding: 14px 16px; }
   .panel h1 { font-size: 20px; margin-bottom: 4px; }
   .panel > p, .hint { margin-bottom: 8px; }
+}
+
+/* ===== درب‑داون قابل للطيّ (الإحصائيات/المتصدّرون) ===== */
+.dd-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; pointer-events: auto; }
+.dd-title { color: #ffd76a; font-weight: 700; font-size: 13px; }
+.dd-arrow { color: #9fc0e6; font-size: 11px; }
+.dd-body { margin-top: 5px; }
+.dd-body.hidden { display: none; }
+#hud .dd-head, #hud button, #room-code-hud, #room-code-hud-copy { pointer-events: auto; }
+#leaderboard .dd-head { pointer-events: auto; }
+#leaderboard #lb-list { margin-top: 5px; }
+#boost-bar-wrap.speedcube #boost-bar-fill { background: linear-gradient(90deg, #ff7a00, #ffd23f); }
+
+/* ===== صف العنوان + قائمة اللغات ===== */
+.title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.title-row h1 { margin: 0; }
+.lang-dd { position: relative; }
+#lang-btn { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); color: #cfe3ff; border-radius: 10px; padding: 6px 10px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+#lang-btn:hover { background: rgba(255,255,255,0.16); }
+.lang-menu { position: absolute; top: 112%; inset-inline-end: 0; z-index: 30; width: 240px; max-width: 72vw;
+  background: #0d2342; border: 1px solid rgba(255,255,255,0.18); border-radius: 12px; padding: 8px; box-shadow: 0 16px 44px rgba(0,0,0,0.55); }
+.lang-menu.hidden { display: none; }
+#lang-search { width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.22);
+  color: #fff; border-radius: 8px; padding: 8px 10px; outline: none; margin-bottom: 6px; font-size: 14px; }
+#lang-list { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow-y: auto; }
+#lang-list li { padding: 8px 10px; border-radius: 8px; cursor: pointer; color: #cfe3ff; font-size: 14px; text-align: start; }
+#lang-list li:hover { background: rgba(80,180,255,0.18); }
+
+/* ===== قفل + صف اللعب + لصق ===== */
+.play-row { display: flex; gap: 8px; align-items: stretch; }
+.play-row .main-btn { flex: 1; }
+.lock-btn { width: 54px; border-radius: 12px; border: 2px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.06); font-size: 20px; cursor: pointer; }
+.lock-btn.locked { border-color: #ffd24a; background: rgba(255,210,74,0.16); }
+.join-row { display: flex; gap: 8px; align-items: stretch; }
+.input-wrap { position: relative; flex: 1; min-width: 0; }
+.input-wrap input { width: 100%; box-sizing: border-box; padding-inline-end: 58px; text-align: start; }
+.paste-in { position: absolute; inset-inline-end: 5px; top: 50%; transform: translateY(-50%);
+  background: rgba(255,255,255,0.14); border: none; border-radius: 7px; padding: 5px 11px;
+  font-size: 13px; font-weight: 700; color: #cfe3ff; cursor: pointer; }
+.paste-in:hover { background: rgba(255,255,255,0.24); }
+.join-side { width: auto !important; flex: 0 0 auto; padding: 11px 20px; }
+.switch-btn { font-size: 22px; }
+
+/* ===== البورتريه: إخفاء زر السرعة + الإيموجي عمودياً يميناً ===== */
+@media (orientation: portrait) {
+  body.touch.in-game #boost-btn { display: none; }
+  #chat-bar { flex-direction: column; top: 50%; bottom: auto; left: auto;
+    right: calc(8px + env(safe-area-inset-right)); transform: translateY(-50%); border-radius: 26px; }
 }
 
 /* زر تثبيت التطبيق */
@@ -325,17 +389,33 @@ body.touch.in-game #boost-btn { display: flex; }
 .toggle-switch input:checked + .slider { background: #19d3ff; }
 .toggle-switch input:checked + .slider:before { transform: translateX(20px); }
 
-/* ── كود الغرفة ──────────────────────────────── */
-#room-code-wrap {
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
-  width: 100%;
-}
+/* ── رمز الغرفة (صف مرتّب) ──────────────────────── */
+#room-code-wrap { width: 100%; }
 #room-code-wrap.hidden { display: none; }
-.room-label { color: #b9d2f0; font-size: 12px; }
-#room-code-display {
-  font-size: 22px; font-weight: 900; color: #ffd24a;
-  letter-spacing: 4px; word-break: break-all; text-align: center;
+.room-code-row {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,210,74,0.4);
+  border-radius: 12px; padding: 8px 10px 8px 14px;
 }
+.room-code-label { color: #9fc0e6; font-size: 12px; white-space: nowrap; }
+#room-code-display {
+  flex: 1; text-align: center;
+  font-size: 17px; font-weight: 800; color: #ffd24a; letter-spacing: 3px;
+}
+.copy-txt-btn {
+  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px;
+  padding: 6px 14px; font-size: 13px; font-weight: 700; color: #cfe3ff; cursor: pointer; flex-shrink: 0;
+}
+.copy-txt-btn:hover { background: rgba(255,255,255,0.22); }
+
+/* ── شاشة الإيقاف المؤقت ─────────────────────────── */
+.pause-panel { max-width: 320px; }
+.pause-actions { display: flex; flex-direction: column; gap: 14px; margin-top: 22px; }
+.pause-actions .ghost-btn { margin-bottom: 0; }
+
+/* إخفاء قسم الانضمام عند القفل (يحلّ الرمز محلّه) */
+#section-join.hidden { display: none; }
 
 /* ── Buttons ─────────────────────────────────── */
 .main-btn {

@@ -19,95 +19,100 @@
 <body>
   <canvas id="game"></canvas>
 
-  <!-- HUD -->
+  <!-- HUD: إحصائيات قابلة للطيّ + شريط الطاقة -->
   <div id="hud">
-    <div id="score-box">
-      <div class="score-line"><span class="label">أعلى رقم</span><span id="best" class="value">2</span></div>
-      <div class="score-line"><span class="label">النقاط</span><span id="score" class="value">0</span></div>
-      <div class="score-line"><span class="label">الطول</span><span id="length" class="value">1</span></div>
-      <div class="score-line"><span class="label">الوقت</span><span id="time" class="value">0:00</span></div>
-      <div class="score-line"><span class="label">الأفضل</span><span id="highscore" class="value">0</span></div>
-      <div class="score-line"><span class="label">المرحلة</span><span id="level" class="value">1</span></div>
+    <div id="score-box" class="panel-dd">
+      <div class="dd-head" onclick="toggleStats()">
+        <span class="dd-title" data-i18n="stats">إحصائياتك</span>
+        <span class="dd-arrow" id="stats-arrow">▾</span>
+      </div>
+      <div id="stats-body" class="dd-body">
+        <div class="score-line"><span class="label" data-i18n="best">أعلى رقم</span><span id="best" class="value">2</span></div>
+        <div class="score-line"><span class="label" data-i18n="score">النقاط</span><span id="score" class="value">0</span></div>
+        <div class="score-line"><span class="label" data-i18n="length">الطول</span><span id="length" class="value">1</span></div>
+        <div class="score-line"><span class="label" data-i18n="time">الوقت</span><span id="time" class="value">0:00</span></div>
+        <div class="score-line"><span class="label" data-i18n="high">الأفضل</span><span id="highscore" class="value">0</span></div>
+        <div class="score-line"><span class="label" data-i18n="level">المرحلة</span><span id="level" class="value">1</span></div>
+      </div>
+      <div id="boost-bar-wrap">
+        <div id="boost-bar-fill"></div>
+        <span id="boost-bar-label">⚡</span>
+      </div>
     </div>
     <div id="medal-badge" class="hidden"><span id="medal-icon">🥉</span><span id="medal-name"></span></div>
     <div id="room-code-hud" class="hidden">
-      <span class="rc-label">رمز الغرفة</span>
+      <span class="rc-label" data-i18n="roomShort">رمز الغرفة</span>
       <span id="room-code-hud-val"></span>
       <button id="room-code-hud-copy" title="نسخ">📋</button>
     </div>
-    <div id="boost-bar-wrap">
-      <div id="boost-bar-fill"></div>
-      <span id="boost-bar-label">⚡</span>
-    </div>
   </div>
 
-  <!-- Leaderboard -->
-  <div id="leaderboard">
-    <div class="lb-title">المتصدّرون</div>
+  <!-- المتصدّرون: درب‑داون قابل للطيّ -->
+  <div id="leaderboard" class="panel-dd">
+    <div class="dd-head" onclick="toggleLB()">
+      <span class="dd-title" data-i18n="leaderboard">المتصدّرون</span>
+      <span class="dd-arrow" id="lb-arrow">▾</span>
+    </div>
     <ol id="lb-list"></ol>
   </div>
 
   <!-- ===== شاشة البداية ===== -->
   <div id="start-screen" class="overlay">
     <div class="panel">
-      <h1>Snake 2048</h1>
-      <p>حرّك الماوس لتوجيه الثعبان · اضغط باستمرار للتسارع</p>
-
-      <input id="name-input" type="text" maxlength="14" placeholder="اكتب اسمك" autocomplete="off"/>
-      <button id="install-btn" class="ghost-btn hidden" onclick="installApp()">📲 ثبّت التطبيق</button>
-
-      <div class="hint">
-        <span><b>⚡</b> سرعة</span>
-        <span><b>×2</b> مضاعفة</span>
-        <span><b>÷2</b> نصف</span>
-        <span class="click-hint">اضغط مطوّلاً / Space للتسارع</span>
+      <div class="title-row">
+        <h1>Snake 2048</h1>
+        <div id="lang-dd" class="lang-dd">
+          <button id="lang-btn" type="button" onclick="toggleLangMenu()">🌐 <span id="lang-current">EN</span></button>
+          <div id="lang-menu" class="lang-menu hidden">
+            <input id="lang-search" type="text" oninput="filterLangs()" />
+            <ul id="lang-list"></ul>
+          </div>
+        </div>
       </div>
 
-      <!-- ===== وضع منفرد / جماعي ===== -->
+      <input id="name-input" type="text" maxlength="14" autocomplete="off"/>
+      <button id="install-btn" class="ghost-btn hidden" onclick="installApp()" data-i18n="install">📲 ثبّت التطبيق</button>
+
+      <!-- وضع منفرد / جماعي (أيقونات) -->
       <div id="mode-switch">
-        <button id="btn-solo"  class="switch-btn active" onclick="switchMode('solo')">منفرد</button>
-        <button id="btn-multi" class="switch-btn"        onclick="switchMode('multi')">جماعي</button>
+        <button id="btn-solo"  class="switch-btn active" onclick="switchMode('solo')"  data-i18n-title="solo">👤</button>
+        <button id="btn-multi" class="switch-btn"        onclick="switchMode('multi')" data-i18n-title="multi">👥</button>
       </div>
 
       <!-- Solo -->
       <div id="panel-solo" class="sub-panel">
-        <button id="play-btn" class="main-btn">ابدأ اللعب</button>
+        <button id="play-btn" class="main-btn" data-i18n="play">ابدأ اللعب</button>
       </div>
 
       <!-- Multi -->
       <div id="panel-multi" class="sub-panel hidden">
-
-        <!-- سويتش غرفة خاصة -->
-        <div class="toggle-row">
-          <span class="toggle-label">غرفة خاصة (برمز)</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="private-room" onchange="onPrivateToggle()"/>
-            <span class="slider"></span>
-          </label>
+        <div class="play-row">
+          <button id="lock-toggle" class="lock-btn open" onclick="toggleLock()" data-i18n-title="lock">🔓</button>
+          <button id="play-multi-btn" class="main-btn" onclick="doPlayMulti()" data-i18n="online">العب أونلاين</button>
         </div>
-        <div id="room-hint" class="hint-small">غرفة عامة: يدخلها أي شخص مباشرة بدون رمز.</div>
-
-        <button id="play-multi-btn" class="main-btn" onclick="doPlayMulti()">العب أونلاين</button>
         <div id="multi-status" class="status-msg"></div>
-
-        <div id="room-code-wrap" class="hidden">
-          <div class="room-label">رمز الغرفة — أرسله لأصدقائك</div>
-          <div id="room-code-display"></div>
-          <button class="small-btn" onclick="copyCode()">نسخ الرمز</button>
-          <div id="host-status" class="status-msg"></div>
-        </div>
 
         <div class="divider"></div>
 
-        <!-- انضمام برمز صديق -->
+        <!-- خانة الانضمام ورمز الغرفة في نفس الموضع: يظهر أحدهما فقط -->
         <div id="section-join">
-          <div class="section-title">انضمام برمز صديق</div>
-          <input id="join-code-input" type="text" maxlength="12"
-                 placeholder="الصق رمز الغرفة" autocomplete="off"/>
-          <button id="join-btn" class="main-btn" onclick="doJoin()">انضمام</button>
+          <div class="join-row">
+            <div class="input-wrap">
+              <input id="join-code-input" type="text" maxlength="12" autocomplete="off" data-i18n-ph="joinPh"/>
+              <button class="paste-in" onclick="pasteCode()" data-i18n="paste">لصق</button>
+            </div>
+            <button id="join-btn" class="main-btn join-side" onclick="doJoin()" data-i18n="join">انضمام</button>
+          </div>
           <div id="join-status" class="status-msg"></div>
         </div>
 
+        <div id="room-code-wrap" class="hidden">
+          <div class="room-code-row">
+            <span class="room-code-label" data-i18n="roomShort">رمز الغرفة</span>
+            <span id="room-code-display"></span>
+            <button class="copy-txt-btn" onclick="copyCode()" data-i18n="copy">نسخ</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -115,32 +120,45 @@
   <!-- ===== شاشة النهاية ===== -->
   <div id="over-screen" class="overlay hidden">
     <div class="panel">
-      <h1>انتهت اللعبة</h1>
-      <p>أعلى رقم: <span id="final-best">2</span><br/>
-         النقاط: <span id="final-score">0</span></p>
-      <button id="restart-btn" class="main-btn">إعادة اللعب</button>
+      <h1 data-i18n="gameOver">انتهت اللعبة</h1>
+      <p><span data-i18n="best">أعلى رقم</span>: <span id="final-best">2</span><br/>
+         <span data-i18n="score">النقاط</span>: <span id="final-score">0</span></p>
+      <button id="restart-btn" class="main-btn" data-i18n="restart">إعادة اللعب</button>
     </div>
   </div>
 
-  <!-- ===== شاشة الفوز (اللانهائية) ===== -->
+  <!-- ===== شاشة الفوز ===== -->
   <div id="win-screen" class="overlay hidden">
     <div class="panel">
       <div class="trophy">🏆</div>
-      <h1>المنتصر</h1>
+      <h1 data-i18n="winner">المنتصر</h1>
       <p class="winner-name"><span id="win-name">أنت</span></p>
-      <p>وصل إلى الميدالية <b>♾️ اللانهائية</b>!<br/>
-         🎁 هديتك: <b>3 شحنات مضاعفة</b> تظهر جانباً — انقرها أو اضغط <b>E</b>.</p>
-      <button id="win-restart-btn" class="main-btn">ابدأ اللعب</button>
+      <p data-i18n="winNote">🎁 الجائزة: 3 شحنات مضاعفة — انقرها أو اضغط E</p>
+      <button id="win-restart-btn" class="main-btn" data-i18n="play">ابدأ اللعب</button>
+    </div>
+  </div>
+
+  <!-- ===== شاشة الإيقاف المؤقت ===== -->
+  <div id="pause-screen" class="overlay hidden">
+    <div class="panel pause-panel">
+      <h1 data-i18n="paused">إيقاف مؤقت</h1>
+      <div class="pause-actions">
+        <button class="main-btn" onclick="resumeGame()" data-i18n="resume">استئناف</button>
+        <button class="ghost-btn" onclick="exitToMenu()" data-i18n="exit">الخروج للقائمة</button>
+      </div>
     </div>
   </div>
 
   <!-- شحنات الجائزة (جانبية) -->
   <div id="charges" class="hidden"></div>
 
+  <!-- قوى خاصة (BinAref) -->
+  <div id="powers" class="hidden"></div>
+
   <!-- إشعارات جانبية -->
   <div id="notifications"></div>
 
-  <!-- تحكّم اللمس (هاتف) -->
+  <!-- تحكّم اللمس -->
   <div id="joystick" class="hidden"><div id="joystick-knob"></div></div>
   <button id="boost-btn">⚡</button>
 
@@ -153,6 +171,7 @@
     <button data-emoji="💀">💀<span class="kbd">5</span></button>
   </div>
 
+  <script defer src="lang.js"></script>
   <!-- PeerJS للأونلاين فقط؛ defer حتى لا يعطّل اللعب الفردي بدون إنترنت -->
   <script defer src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script defer src="game.js"></script>

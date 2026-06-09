@@ -16,7 +16,7 @@
     BASE_SIZE: 1.0, SIZE_GROWTH: 0.12, CUBE_H: 0.62,
     SEG_GAP: 1.18, SPEED: 8.5, TURN_RATE: 6.8,  // >1 = فجوة صغيرة بين المكعبات (خلف بعضها لا فوقها)
 
-    SPEEDCUBE_MULT: 2.0, SPEEDCUBE_TIME: 3.0,
+    SPEEDCUBE_MULT: 2.0, SPEEDCUBE_TIME: 3.0, RADAR_TIME: 8.0,
     BOOST_MULT: 1.5, BOOST_DRAIN: 0.25, BOOST_REFILL: 0.10,
 
     FOOD_COUNT: 95, POWERUP_COUNT: 8,
@@ -35,8 +35,9 @@
     speed:  { color: "#19d3ff", label: "⚡",  glow: "#19d3ff" },
     double: { color: "#37d67a", label: "×2", glow: "#37d67a" },
     half:   { color: "#ff5d73", label: "÷2", glow: "#ff5d73" },
+    radar:  { color: "#2ee6a6", label: "📡", glow: "#2ee6a6" },
   };
-  const POWERUP_WEIGHTS = [{ t: "speed", w: 50 }, { t: "double", w: 30 }, { t: "half", w: 20 }];
+  const POWERUP_WEIGHTS = [{ t: "speed", w: 42 }, { t: "double", w: 26 }, { t: "half", w: 18 }, { t: "radar", w: 14 }];
 
   const MAP_PATTERNS = ["square", "circle", "triangle", "maze"];
   const MEDALS = [
@@ -213,7 +214,7 @@
   // =====================================================================
   const snake = {
     x: 0, y: 0, angle: 0, values: [], path: [],
-    speedTimer: 0, stamina: 1, boosting: false, dangerTimer: 0, charges: 0,
+    speedTimer: 0, stamina: 1, boosting: false, dangerTimer: 0, headDangerTimer: 0, charges: 0, radarTimer: 0,
   };
   let playerName = "أنت";
 
@@ -222,7 +223,7 @@
     snake.values = CONFIG.START_SNAKE.slice().sort((a, b) => b - a);
     snake.path = [{ x: 0, y: 0 }];
     snake.speedTimer = 0; snake.stamina = 1; snake.boosting = false;
-    snake.dangerTimer = 0; snake.charges = 0;
+    snake.dangerTimer = 0; snake.headDangerTimer = 0; snake.charges = 0; snake.radarTimer = 0;
   }
   function segmentDistances() {
     const d = [0];
@@ -378,6 +379,7 @@
   }
   function applyPowerup(type) {
     if (type === "speed") snake.speedTimer = CONFIG.SPEEDCUBE_TIME;
+    else if (type === "radar") snake.radarTimer = CONFIG.RADAR_TIME;
     else if (type === "double") { snake.values = snake.values.map((v) => v * 2); }
     else if (type === "half") {
       snake.values = snake.values.map((v) => v / 2).filter((v) => v >= 2);
@@ -385,9 +387,9 @@
       if (snake.values.length === 0) gameOver();
     }
   }
-  // قطع الذيل: المكعب الأخير يتحول لطعام ساكن
-  function severTail() {
-    if (snake.values.length <= 1) { gameOver(); return; }
+  // قطع آخر مكعب (لا يقتل؛ يتوقّف عند الرأس فقط)
+  function severTailOne() {
+    if (snake.values.length <= 1) return;
     const v = snake.values.pop();
     const dists = segmentDistances();
     const pt = pointAtDistance(dists[dists.length - 1] || 0);
@@ -406,8 +408,9 @@
     gameLevel++; mapRotation++;
     initItems(); // آمن لأنه يُستدعى من updateMedals قبل حلقات الأكل
     document.getElementById("level").textContent = gameLevel;
-    notify("🗺️ الخريطة التالية — المرحلة " + gameLevel);
-    if (isHost) { hostBroadcast(worldMsg()); hostBroadcast(itemsMsg()); hostBroadcast({ t: "notify", text: "🗺️ الخريطة التالية — المرحلة " + gameLevel }); }
+    const mt = "🗺️ " + t("mapNext") + " " + gameLevel;
+    notify(mt);
+    if (isHost) { hostBroadcast(worldMsg()); hostBroadcast(itemsMsg()); hostBroadcast({ t: "notify", text: mt }); }
   }
 
   // =====================================================================
@@ -432,11 +435,11 @@
       particles.push({
         x: tail.x - by * spread, y: tail.y + bx * spread,
         vx: bx * rand(6, 10) + rand(-1, 1), vy: by * rand(6, 10) + rand(-1, 1),
-        life: rand(0.35, 0.6), max: 0.6, color: col, size: rand(2.5, 5), streak: true, glow: col,
+        life: rand(0.35, 0.6), max: 0.6, color: col, size: rand(2.5, 5), streak: true, glow: col, low: true,
       });
     }
     if (Math.random() < 0.35) // شرارة بيضاء لامعة
-      particles.push({ x: tail.x, y: tail.y, vx: bx * rand(4, 7), vy: by * rand(4, 7), life: 0.3, max: 0.3, color: "#ffffff", size: rand(2, 3.4), streak: true, glow: col });
+      particles.push({ x: tail.x, y: tail.y, vx: bx * rand(4, 7), vy: by * rand(4, 7), life: 0.3, max: 0.3, color: "#ffffff", size: rand(2, 3.4), streak: true, glow: col, low: true });
   }
   function spawnEatFx(x, y) { spawnBurst(x, y, "#bfe9ff", 6); }
   function spawnDeathFx() {
@@ -449,16 +452,18 @@
       p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.92; p.vy *= 0.92;
     }
   }
-  function drawParticles() {
+  function drawParticles(lowLayer) {
     ctx.save();
     for (const p of particles) {
+      if (!!p.low !== !!lowLayer) continue; // طبقة منفصلة لشعاع السرعة (تحت المكعبات)
       const pr = project(p.x, p.y);
       ctx.globalAlpha = clamp(p.life / p.max, 0, 1);
       if (p.streak) {
         const back = project(p.x - p.vx * 0.045, p.y - p.vy * 0.045);
+        const yo = p.low ? 8 : -10; // تحت المكعب لأثر السرعة
         ctx.shadowColor = p.glow || p.color; ctx.shadowBlur = 12;
         ctx.strokeStyle = p.color; ctx.lineWidth = p.size; ctx.lineCap = "round";
-        ctx.beginPath(); ctx.moveTo(pr.x, pr.y - 10); ctx.lineTo(back.x, back.y - 10); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(pr.x, pr.y + yo); ctx.lineTo(back.x, back.y + yo); ctx.stroke();
       } else {
         ctx.shadowBlur = 0; ctx.fillStyle = p.color;
         ctx.beginPath(); ctx.arc(pr.x, pr.y - 10, p.size, 0, Math.PI * 2); ctx.fill();
@@ -473,11 +478,13 @@
     const bx = -Math.cos(snake.angle), by = -Math.sin(snake.angle);
     const c = project(tail.x + bx * 1.0, tail.y + by * 1.0);
     const col = snake.speedTimer > 0 ? "255,176,32" : "25,211,255";
-    const rr = (sizeForValue(headValue()) * CONFIG.SCALE) * (0.9 + 0.18 * Math.sin(now * 22));
+    const down = sizeForValue(headValue()) * CONFIG.SCALE * CONFIG.CUBE_H * 0.7; // أسفل المكعب
+    const cy = c.y + down;
+    const rr = (sizeForValue(headValue()) * CONFIG.SCALE) * (0.85 + 0.18 * Math.sin(now * 22));
     ctx.save();
-    const g = ctx.createRadialGradient(c.x, c.y - 8, 2, c.x, c.y - 8, rr);
+    const g = ctx.createRadialGradient(c.x, cy, 2, c.x, cy, rr);
     g.addColorStop(0, `rgba(${col},0.55)`); g.addColorStop(0.5, `rgba(${col},0.22)`); g.addColorStop(1, `rgba(${col},0)`);
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, c.y - 8, rr, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, cy, rr, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 
@@ -565,11 +572,15 @@
       case "ArrowRight": case "KeyD": input.right = true; e.preventDefault(); break;
       case "Space": input.boostKey = true; e.preventDefault(); break;
       case "KeyE": useCharge(); break;
+      case "KeyQ": usePower("double"); break;
+      case "KeyF": usePower("speed"); break;
+      case "KeyR": usePower("radar"); break;
       case "Digit1": case "Numpad1": emojiByIndex(0); break;
       case "Digit2": case "Numpad2": emojiByIndex(1); break;
       case "Digit3": case "Numpad3": emojiByIndex(2); break;
       case "Digit4": case "Numpad4": emojiByIndex(3); break;
       case "Digit5": case "Numpad5": emojiByIndex(4); break;
+      case "Escape": if (state === "playing") pauseGame(); else if (state === "paused") resumeGame(); break;
     }
   });
   addEventListener("keyup", (e) => {
@@ -613,7 +624,7 @@
   }
   function beginPlay(mode) {
     const nm = (document.getElementById("name-input").value || "").trim();
-    playerName = nm || "أنت";
+    playerName = nm || t("you");
     try { localStorage.setItem("snake2048_name", playerName); } catch (e) {}
     online = mode !== "solo"; isHost = mode === "host"; migrating = false;
     if (mode !== "host") hideRoomCodeHud(); // الرمز يظهر للمضيف الخاص فقط
@@ -634,13 +645,16 @@
     document.getElementById("chat-bar").classList.remove("hidden");
     document.body.classList.add("in-game");
     state = "playing";
+    try { history.pushState({ p: "game" }, ""); } catch (_) {} // لاعتراض زر الرجوع
+    syncPowers();
     document.getElementById("start-screen").classList.add("hidden");
     document.getElementById("over-screen").classList.add("hidden");
     document.getElementById("win-screen").classList.add("hidden");
     if (isHost) { hostBroadcast(worldMsg()); hostBroadcast(itemsMsg()); }
   }
   function gameOver() {
-    if (state !== "playing") return;
+    if (state !== "playing" && state !== "paused") return; // قد يُؤكَل وهو متوقّف مؤقتاً
+    document.getElementById("pause-screen").classList.add("hidden");
     spawnDeathFx();
     if (headValue() > highScore) { highScore = headValue(); try { localStorage.setItem("snake2048_high", String(highScore)); } catch (e) {} }
     if (online) netSend({ t: "dead" });
@@ -650,6 +664,7 @@
     document.getElementById("over-screen").classList.remove("hidden");
     document.getElementById("chat-bar").classList.add("hidden");
     document.body.classList.remove("in-game");
+    syncPowers();
   }
 
   function currentSpeed() {
@@ -680,7 +695,7 @@
         medal.reign = 0;
         if (medal.level < 6) medal.level++;
         const m = MEDALS[medal.level];
-        const msg = "🏅 " + leader.name + " — ميدالية " + m.name + " " + m.icon;
+        const msg = "🏅 " + leader.name + " " + m.icon;
         notify(msg);
         if (isHost) { hostBroadcast({ t: "notify", text: msg }); hostBroadcast({ t: "medal", level: medal.level, leaderId: medal.leaderId, leaderName: medal.leaderName }); }
         if (medal.level === 6) { doWin(leader.name, leader.id); return; }
@@ -694,7 +709,7 @@
     if (medal.level > 0) {
       badge.classList.remove("hidden");
       document.getElementById("medal-icon").textContent = MEDALS[medal.level].icon;
-      document.getElementById("medal-name").textContent = MEDALS[medal.level].name + (medal.leaderName ? " — " + medal.leaderName : "");
+      document.getElementById("medal-name").textContent = medal.leaderName || "";
     } else badge.classList.add("hidden");
   }
   function doWin(name, id) {
@@ -711,6 +726,7 @@
     document.getElementById("win-screen").classList.remove("hidden");
     document.getElementById("chat-bar").classList.add("hidden");
     document.body.classList.remove("in-game");
+    syncPowers();
   }
   function useCharge() {
     if (snake.charges <= 0 || state !== "playing") return;
@@ -729,6 +745,26 @@
     }
   }
 
+  // ===== قوى خاصة لصاحب الاسم BinAref (بلا حدود، في أي وقت) =====
+  const BINAREF_NAME = "binaref";
+  const isBinAref = () => (playerName || "").trim().toLowerCase() === BINAREF_NAME;
+  const ABILITIES = [
+    { id: "double", icon: "×2", key: "Q", run: () => { snake.values = snake.values.map((v) => v * 2); spawnBurst(snake.x, snake.y, "#37d67a", 18); } },
+    { id: "speed",  icon: "⚡", key: "F", run: () => { snake.speedTimer = CONFIG.SPEEDCUBE_TIME; } },
+    { id: "radar",  icon: "📡", key: "R", run: () => { snake.radarTimer = CONFIG.RADAR_TIME; } },
+    // أضف أي ميزة مستقبلية هنا وتظهر له تلقائياً
+  ];
+  function usePower(id) { if (state !== "playing" || !isBinAref()) return; const a = ABILITIES.find((x) => x.id === id); if (a) a.run(); }
+  function buildPowers() {
+    const el = document.getElementById("powers"); el.innerHTML = "";
+    for (const a of ABILITIES) {
+      const b = document.createElement("button"); b.className = "power-btn";
+      b.innerHTML = a.icon + "<span class='kbd'>" + a.key + "</span>";
+      b.onclick = () => usePower(a.id); el.appendChild(b);
+    }
+  }
+  function syncPowers() { document.getElementById("powers").classList.toggle("hidden", !(isBinAref() && state === "playing")); }
+
   // =====================================================================
   // التحديث
   // =====================================================================
@@ -737,11 +773,15 @@
     updateMedals(dt);
     if (state !== "playing") return; // قد تنتهي اللعبة بالفوز (اللانهائية)
 
-    const wantBoost = input.holding || input.boostKey;
+    // في العمودي: دفع العصا بقوة = تسارع (بلا زرّ)
+    const portrait = H > W;
+    const joyBoost = portrait && input.joyActive && Math.hypot(input.joyX, input.joyY) > JOY_R * 0.85;
+    const wantBoost = input.holding || input.boostKey || joyBoost;
     snake.boosting = wantBoost && snake.stamina > 0.001;
     if (snake.boosting) snake.stamina = Math.max(0, snake.stamina - CONFIG.BOOST_DRAIN * dt);
     else snake.stamina = Math.min(1, snake.stamina + CONFIG.BOOST_REFILL * dt);
     if (snake.speedTimer > 0) snake.speedTimer = Math.max(0, snake.speedTimer - dt);
+    if (snake.radarTimer > 0) snake.radarTimer = Math.max(0, snake.radarTimer - dt);
 
     // توجيه: لوحة المفاتيح > عصا اللمس > الماوس
     if (input.up || input.down || input.left || input.right) {
@@ -773,14 +813,20 @@
       }
     }
 
-    // مناطق الخطر: قطع الجسم تدريجياً
+    // مناطق الخطر: كل 0.5s يسقط آخر مكعب حتى يبقى الرأس، ثم مهلة ثانية ثم الموت
     if (inDanger(snake.x, snake.y)) {
-      snake.dangerTimer += dt;
-      while (snake.dangerTimer >= CONFIG.DANGER_SEVER_INTERVAL) {
-        snake.dangerTimer -= CONFIG.DANGER_SEVER_INTERVAL;
-        severTail(); if (state !== "playing") return;
+      if (snake.values.length > 1) {
+        snake.headDangerTimer = 0;
+        snake.dangerTimer += dt;
+        while (snake.dangerTimer >= CONFIG.DANGER_SEVER_INTERVAL && snake.values.length > 1) {
+          snake.dangerTimer -= CONFIG.DANGER_SEVER_INTERVAL;
+          severTailOne();
+        }
+      } else {
+        snake.headDangerTimer += dt;
+        if (snake.headDangerTimer >= 1.0) { gameOver(); return; }
       }
-    } else snake.dangerTimer = 0;
+    } else { snake.dangerTimer = 0; snake.headDangerTimer = 0; }
 
     // مسار
     snake.path.unshift({ x: snake.x, y: snake.y });
@@ -801,9 +847,10 @@
     }
 
     const hv = headValue(), hSize = sizeForValue(hv);
+    const headInDanger = inDanger(snake.x, snake.y); // لا تأكل وأنت داخل منطقة الخطر (وإلا لا ينقص جسمك)
     for (let i = foods.length - 1; i >= 0; i--) {
       const f = foods[i];
-      if (Math.hypot(f.x - snake.x, f.y - snake.y) < (hSize + f.size) * 0.5 && f.value <= hv) {
+      if (!headInDanger && Math.hypot(f.x - snake.x, f.y - snake.y) < (hSize + f.size) * 0.5 && f.value <= hv) {
         eatValue(f.value); spawnEatFx(f.x, f.y);
         if (authority()) foods[i] = spawnFood();
         else { foods.splice(i, 1); netSend({ t: "eat", id: f.id }); }
@@ -874,7 +921,7 @@
 
   // وصلني عضّ: المهاجم أكل المكعب index، وما بعده (index+1..) يسقط طعاماً، وأحتفظ بـ 0..index-1
   function applyCut(index) {
-    if (state !== "playing") return;
+    if (state !== "playing" && state !== "paused") return;
     const body = bodyPositions();
     const dropped = snake.values.slice(index + 1);
     for (let j = 0; j < dropped.length; j++) {
@@ -932,6 +979,7 @@
     drawGround();
     for (const p of powerups) drawCard(p.x, p.y, p.size, p.type);
     if (state === "playing" && (snake.boosting || snake.speedTimer > 0)) drawBoostJet(); // تحت المكعبات
+    drawParticles(true); // شعاع السرعة يُرسم تحت المكعبات
     const drawables = [];
     for (const f of foods) drawables.push({ kind: "food", x: f.x, y: f.y, size: f.size, value: f.value, depth: f.x + f.y });
     for (const o of obstacles) drawables.push({ kind: "wall", o, depth: o.x + o.y });
@@ -946,10 +994,11 @@
       if (d.kind === "wall") drawBox(d.o.x, d.o.y, d.o.hw, d.o.hh, d.o.h, d.o.color);
       else drawCube(d.x, d.y, d.size, { color: colorForValue(d.value), label: fmtNum(d.value) });
     }
-    drawParticles();
+    drawParticles(false); // جسيمات الأكل/الدمج فوق المكعبات
     // أسماء ورموز الثعابين البعيدة
     for (const r of remotes.values()) drawRemoteLabel(r);
-    drawArrow(); drawNameLabel(); drawGauges(); drawEmojis();
+    drawArrow(); drawNameLabel(); drawEmojis();
+    if (snake.radarTimer > 0) drawRadar();
   }
   function drawRemoteLabel(r) {
     if (r.x == null) return;
@@ -969,17 +1018,40 @@
     const c = project(snake.x, snake.y);
     const ah = project(snake.x + Math.cos(snake.angle), snake.y + Math.sin(snake.angle));
     let dx = ah.x - c.x, dy = ah.y - c.y; const len = Math.hypot(dx, dy) || 1; dx /= len; dy /= len;
-    const x0 = c.x + dx * 30, y0 = c.y + dy * 30, x1 = c.x + dx * 80, y1 = c.y + dy * 80;
-    ctx.save(); ctx.shadowColor = "rgba(80,210,255,0.9)"; ctx.shadowBlur = 12;
+    const x0 = c.x + dx * 18, y0 = c.y + dy * 18, x1 = c.x + dx * 50, y1 = c.y + dy * 50;
+    ctx.save(); ctx.shadowColor = "rgba(80,210,255,0.9)"; ctx.shadowBlur = 9;
     const g = ctx.createLinearGradient(x0, y0, x1, y1);
     g.addColorStop(0, "rgba(80,210,255,0)"); g.addColorStop(1, "rgba(120,230,255,0.95)");
-    ctx.strokeStyle = g; ctx.lineWidth = 7; ctx.lineCap = "round";
+    ctx.strokeStyle = g; ctx.lineWidth = 5; ctx.lineCap = "round";
     ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
-    const px = -dy, py = dx, hw = 11, hl = 18; ctx.fillStyle = "rgba(150,235,255,0.98)";
+    const px = -dy, py = dx, hw = 8, hl = 13; ctx.fillStyle = "rgba(150,235,255,0.98)";
     ctx.beginPath(); ctx.moveTo(x1 + dx * 4, y1 + dy * 4);
     ctx.lineTo(x1 - dx * hl + px * hw, y1 - dy * hl + py * hw);
     ctx.lineTo(x1 - dx * hl - px * hw, y1 - dy * hl - py * hw);
     ctx.closePath(); ctx.fill(); ctx.restore();
+  }
+  // الرادار: مؤشّرات على حافة الشاشة نحو أقرب اللاعبين
+  function drawRadar() {
+    const cx = W / 2, cy = H / 2;
+    const list = [];
+    for (const r of remotes.values()) if (r.x != null) list.push({ r, d: Math.hypot(r.x - snake.x, r.y - snake.y) });
+    list.sort((a, b) => a.d - b.d);
+    const ring = Math.min(W, H) / 2 - 64;
+    for (let i = 0; i < Math.min(6, list.length); i++) {
+      const { r, d } = list[i];
+      const rp = project(r.x, r.y);
+      let dx = rp.x - cx, dy = rp.y - cy; const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+      const ex = cx + dx * ring, ey = cy + dy * ring, ang = Math.atan2(dy, dx);
+      ctx.save();
+      ctx.translate(ex, ey); ctx.rotate(ang);
+      ctx.shadowColor = "#2ee6a6"; ctx.shadowBlur = 8; ctx.fillStyle = r.color || "#2ee6a6";
+      ctx.beginPath(); ctx.moveTo(13, 0); ctx.lineTo(-7, 8); ctx.lineTo(-7, -8); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      ctx.font = '700 11px "Segoe UI", Tahoma, sans-serif'; ctx.fillStyle = "#dffff2"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(Math.round(d) + "", ex - dx * 18, ey - dy * 18);
+    }
+    ctx.fillStyle = "#2ee6a6"; ctx.font = '800 14px "Segoe UI", Tahoma, sans-serif'; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("📡 " + Math.ceil(snake.radarTimer) + "s", cx, cy - ring - 18);
   }
   function drawNameLabel() {
     const c = project(snake.x, snake.y);
@@ -1015,14 +1087,28 @@
     document.getElementById("length").textContent = snake.values.length;
     document.getElementById("time").textContent = fmtTime(playTime);
     document.getElementById("highscore").textContent = fmtNum(Math.max(highScore, headValue()));
+    // شريط الطاقة في الـHUD (هو العدّاد المعتمد)
+    document.getElementById("boost-bar-fill").style.width = Math.round(snake.stamina * 100) + "%";
+    const bw = document.getElementById("boost-bar-wrap");
+    bw.classList.toggle("boosting", snake.boosting);
+    bw.classList.toggle("speedcube", snake.speedTimer > 0);
+    document.getElementById("boost-bar-label").textContent = snake.speedTimer > 0 ? "×2" : "⚡";
     const entries = [{ id: myId, name: playerName, head: headValue(), me: true }];
     if (online) for (const r of remotes.values()) entries.push({ id: r.id, name: r.name || "?", head: r.head || 2, me: false });
     entries.sort((a, b) => b.head - a.head);
-    let html = "";
-    entries.slice(0, 5).forEach((e, i) => {
+    const n = entries.length, myIdx = entries.findIndex((e) => e.me);
+    const row = (e, rank) => {
       const mstr = (e.id === medal.leaderId && medal.level > 0) ? " " + MEDALS[medal.level].icon : "";
-      html += `<li class="${e.me ? "me" : ""}"><span><span class="rank">${i + 1}.</span> ${escapeHtml(e.name)}${mstr}</span><span>${fmtNum(e.head)}</span></li>`;
-    });
+      return `<li class="${e.me ? "me" : ""}"><span><span class="rank">${rank}.</span> ${escapeHtml(e.name)}${mstr}</span><span>${fmtNum(e.head)}</span></li>`;
+    };
+    let html = "";
+    if (!lbOpen) {
+      html = row(entries[myIdx], myIdx + 1); // مطويّ: مرتبتك فقط
+    } else {
+      // نافذة 7: 3 فوقك + أنت + 3 تحتك
+      const start = Math.max(0, Math.min(myIdx - 3, Math.max(0, n - 7)));
+      for (let i = start; i < Math.min(n, start + 7); i++) html += row(entries[i], i + 1);
+    }
     document.getElementById("lb-list").innerHTML = html;
   }
   const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -1038,6 +1124,48 @@
   function sendEmoji(em) { if (!em) return; showEmoji(em); if (online) netSend({ t: "emoji", em }); }
   chatButtons.forEach((b) => b.addEventListener("click", () => sendEmoji(b.dataset.emoji)));
   function emojiByIndex(i) { const b = chatButtons[i]; if (b) sendEmoji(b.dataset.emoji); }
+
+  // ===== الواجهة: الطيّ + اللغات =====
+  let lbOpen = true, statsOpen = true, curLang = "en";
+  window.toggleStats = function () { statsOpen = !statsOpen; document.getElementById("stats-body").classList.toggle("hidden", !statsOpen); document.getElementById("stats-arrow").textContent = statsOpen ? "▾" : "▸"; };
+  window.toggleLB = function () { lbOpen = !lbOpen; document.getElementById("lb-arrow").textContent = lbOpen ? "▾" : "▸"; };
+
+  function t(key) { const L = window.I18N || {}; return (L[curLang] && L[curLang][key]) || (L.en && L.en[key]) || key; }
+  function applyI18n() {
+    document.querySelectorAll("[data-i18n]").forEach((el) => (el.textContent = t(el.getAttribute("data-i18n"))));
+    document.querySelectorAll("[data-i18n-ph]").forEach((el) => (el.placeholder = t(el.getAttribute("data-i18n-ph"))));
+    document.querySelectorAll("[data-i18n-title]").forEach((el) => (el.title = t(el.getAttribute("data-i18n-title"))));
+    document.getElementById("name-input").placeholder = t("namePh");
+    document.getElementById("lang-search").placeholder = t("search");
+    const meta = (window.LANGS || []).find((l) => l.code === curLang);
+    const rtl = (window.I18N[curLang] && window.I18N[curLang]._rtl) || (meta && meta.rtl);
+    document.documentElement.dir = rtl ? "rtl" : "ltr";
+    document.documentElement.lang = curLang;
+    document.getElementById("lang-current").textContent = curLang.toUpperCase();
+  }
+  function setLang(code) { curLang = code; try { localStorage.setItem("snake2048_lang", code); } catch (e) {} applyI18n(); }
+  function buildLangList(filter) {
+    const ul = document.getElementById("lang-list"); ul.innerHTML = "";
+    const f = (filter || "").trim().toLowerCase();
+    for (const L of (window.LANGS || [])) {
+      if (f && !((L.native || "").toLowerCase().includes(f) || (L.en || "").toLowerCase().includes(f) || (L.q || "").includes(f))) continue;
+      const li = document.createElement("li"); li.textContent = L.native + " — " + L.en;
+      li.onclick = () => { setLang(L.code); document.getElementById("lang-menu").classList.add("hidden"); };
+      ul.appendChild(li);
+    }
+  }
+  window.toggleLangMenu = function () {
+    const m = document.getElementById("lang-menu"); const willOpen = m.classList.contains("hidden");
+    m.classList.toggle("hidden");
+    if (willOpen) { const s = document.getElementById("lang-search"); s.value = ""; buildLangList(""); s.focus(); }
+  };
+  window.filterLangs = function () { buildLangList(document.getElementById("lang-search").value); };
+  (function initLang() {
+    let saved = null; try { saved = localStorage.getItem("snake2048_lang"); } catch (e) {}
+    let code = saved || (navigator.language || "en").slice(0, 2).toLowerCase();
+    if (!(window.LANGS || []).some((l) => l.code === code)) code = "en";
+    curLang = code; applyI18n();
+  })();
 
   // =====================================================================
   // الشبكة (PeerJS) — نجمة: المضيف يملك العالم ويعيد توزيع الحالة
@@ -1058,27 +1186,45 @@
     document.getElementById("btn-multi").classList.toggle("active", mode === "multi");
     document.getElementById("panel-solo").classList.toggle("hidden", mode !== "solo");
     document.getElementById("panel-multi").classList.toggle("hidden", mode !== "multi");
+    if (mode !== "multi") closeLobby();
   };
-  window.onPrivateToggle = function () {
-    const priv = document.getElementById("private-room").checked;
-    document.getElementById("room-hint").textContent = priv
-      ? "غرفة خاصة: ستحصل على رمز ترسله لأصدقائك."
-      : "غرفة عامة: يدخلها أي شخص مباشرة بدون رمز.";
-    document.getElementById("play-multi-btn").textContent = priv ? "أنشئ غرفة خاصة" : "العب أونلاين";
+  let roomLocked = false, hostLobby = false; // مفتوح = عامة، مغلق = خاصة (برمز)
+  window.toggleLock = function () {
+    roomLocked = !roomLocked;
+    const b = document.getElementById("lock-toggle");
+    b.textContent = roomLocked ? "🔒" : "🔓";
+    b.classList.toggle("open", !roomLocked);
+    b.classList.toggle("locked", roomLocked);
+    // القفل يبدّل بين خانة الانضمام ورمز الغرفة في نفس الموضع
+    document.getElementById("section-join").classList.toggle("hidden", roomLocked);
+    document.getElementById("room-code-wrap").classList.toggle("hidden", !roomLocked);
+    if (roomLocked) { document.getElementById("room-code-display").textContent = "…"; openLobby(); }
+    else closeLobby();
+  };
+  function resetLockUI() {
+    roomLocked = false;
+    const b = document.getElementById("lock-toggle");
+    b.textContent = "🔓"; b.classList.add("open"); b.classList.remove("locked");
+    document.getElementById("section-join").classList.remove("hidden");
     document.getElementById("room-code-wrap").classList.add("hidden");
+  }
+  window.pasteCode = async function () {
+    const inp = document.getElementById("join-code-input");
+    try { const txt = await navigator.clipboard.readText(); inp.value = (txt || "").trim().toUpperCase(); }
+    catch (e) { inp.focus(); }
   };
   window.copyCode = function () { copyText(document.getElementById("room-code-display").textContent); };
   function copyText(code) {
     if (!code) return;
-    if (navigator.clipboard) navigator.clipboard.writeText(code).then(() => notify("نُسخ الرمز ✓"), () => {});
-    else notify("الرمز: " + code);
+    if (navigator.clipboard) navigator.clipboard.writeText(code).then(() => notify(t("copied")), () => {});
+    else notify(code);
   }
 
   function genCode() { const c = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let s = ""; for (let i = 0; i < 5; i++) s += c[Math.floor(Math.random() * c.length)]; return s; }
   function peerLoaded() { return typeof Peer !== "undefined"; }
 
   const PUBLIC_CODE = "PUBLIC"; // الغرفة العامة المشتركة (رمز ثابت)
-  function setName() { const nm = (document.getElementById("name-input").value || "").trim(); playerName = nm || "أنت"; }
+  function setName() { const nm = (document.getElementById("name-input").value || "").trim(); playerName = nm || t("you"); }
   function mStatus(text, err) { const s = document.getElementById("multi-status"); s.classList.toggle("error", !!err); s.textContent = text; }
 
   let openTimer = null;
@@ -1094,27 +1240,44 @@
   }
   function hideRoomCodeHud() { document.getElementById("room-code-hud").classList.add("hidden"); }
 
-  // الزرّ الرئيسي: عام (دخول/استضافة تلقائي) أو خاص (إنشاء برمز)
+  // الزرّ الرئيسي
   window.doPlayMulti = function () {
-    if (!peerLoaded()) { mStatus("تعذّر تحميل PeerJS (تحقّق من الإنترنت ثم أعد التحميل)", true); return; }
+    if (!peerLoaded()) { mStatus("PeerJS — " + t("connecting"), true); return; }
     setName();
-    if (document.getElementById("private-room").checked) { mStatus("جارٍ إنشاء الغرفة الخاصة…"); startHost(0, genCode()); }
-    else { mStatus("جارٍ الدخول للغرفة العامة…"); startPublic(); }
+    if (roomLocked) {
+      if (online && isHost) { hostLobby = false; showRoomCodeHud(roomCode); beginPlay("host"); } // ابدأ اللعب كمضيف
+      else openLobby(); // أنشئ الغرفة أولاً (يظهر الرمز) ثم اضغط مرة أخرى للبدء
+    } else { mStatus(t("connecting")); startPublic(); }
   };
+
+  // إنشاء غرفة خاصة فوراً عند إغلاق القفل (لوبي قبل اللعب)
+  function openLobby() {
+    if (online && isHost) return;
+    if (!peerLoaded()) { mStatus("PeerJS", true); return; }
+    setName(); hostLobby = true; mStatus(t("connecting"));
+    startHost(0, genCode());
+  }
+  function closeLobby() {
+    if (state === "playing") return;
+    if (online && isHost && hostLobby) { try { if (peer) peer.destroy(); } catch (_) {} online = false; isHost = false; }
+    hostLobby = false;
+    document.getElementById("room-code-wrap").classList.add("hidden");
+    mStatus("");
+  }
 
   // الغرفة العامة: حاول أن تكون المضيف، وإن كان موجوداً فانضمّ إليه
   function startPublic() {
     armTimeout(mStatus);
     currentRoom = PUBLIC_CODE;
     peer = new Peer(PEER_PREFIX + PUBLIC_CODE, peerOpts());
-    peer.on("open", (id) => { clearTimeout(openTimer); roomCode = ""; becomeHost(id); hideRoomCodeHud(); mStatus("أنت مضيف الغرفة العامة 🌍"); });
+    peer.on("open", (id) => { clearTimeout(openTimer); roomCode = ""; becomeHost(id); hideRoomCodeHud(); mStatus("🌍 " + t("hostNow")); beginPlay("host"); });
     peer.on("error", (e) => {
-      if (e.type === "unavailable-id") { try { peer.destroy(); } catch (_) {} mStatus("جارٍ الانضمام للغرفة العامة…"); joinRoom(PUBLIC_CODE, document.getElementById("multi-status")); }
+      if (e.type === "unavailable-id") { try { peer.destroy(); } catch (_) {} mStatus(t("connecting")); joinRoom(PUBLIC_CODE, document.getElementById("multi-status")); }
       else mStatus("خطأ: " + e.type, true);
     });
   }
 
-  // غرفة خاصة برمز
+  // غرفة خاصة برمز (لوبي: ينشئ العالم ويعرض الرمز دون بدء اللعب)
   function startHost(attempt, code) {
     roomCode = code; currentRoom = code;
     armTimeout(mStatus);
@@ -1122,8 +1285,10 @@
     peer.on("open", (id) => {
       clearTimeout(openTimer);
       becomeHost(id);
-      showRoomCodeHud(roomCode);
-      mStatus("الغرفة جاهزة — الرمز ظاهر أعلى اليسار 👈");
+      initItems(); // العالم جاهز لمن ينضمّ أثناء الانتظار
+      document.getElementById("room-code-wrap").classList.remove("hidden");
+      document.getElementById("room-code-display").textContent = roomCode;
+      mStatus("");
     });
     peer.on("error", (e) => {
       if (e.type === "unavailable-id" && attempt < 6) { try { peer.destroy(); } catch (_) {} startHost(attempt + 1, genCode()); }
@@ -1133,26 +1298,26 @@
   function becomeHost(id) {
     myId = id; isHost = true; online = true;
     peer.on("connection", onHostConnection);
-    beginPlay("host");
   }
   function onHostConnection(conn) {
     conn.on("data", (d) => handleHostMsg(conn.peer, d));
     conn.on("close", () => {
       const r = remotes.get(conn.peer); remotes.delete(conn.peer); clientConns.delete(conn.peer);
-      if (r) { const t = "👋 " + r.name + " غادر"; notify(t); hostBroadcast({ t: "notify", text: t }); }
+      if (r) { const msg = "👋 " + r.name + " " + t("left"); notify(msg); hostBroadcast({ t: "notify", text: msg }); }
     });
     conn.on("open", () => {
       clientConns.set(conn.peer, conn);
       const nm = (conn.metadata && conn.metadata.name) || "لاعب";
       const r = remotes.get(conn.peer) || { id: conn.peer, color: colorForId(conn.peer) }; r.name = nm; remotes.set(conn.peer, r);
       try { conn.send(worldMsg()); conn.send(itemsMsg()); } catch (_) {}
-      const txt = "👋 " + nm + " انضم"; notify(txt); hostBroadcast({ t: "notify", text: txt }, conn.peer);
+      const txt = "👋 " + nm + " " + t("joined"); notify(txt); hostBroadcast({ t: "notify", text: txt }, conn.peer);
     });
   }
 
   // ---- الانضمام (عميل) ----
   window.doJoin = function () {
     const s = document.getElementById("join-status"); s.classList.remove("error");
+    if (online && isHost) return; // أنت مضيف بالفعل — لا تنضمّ مرتين
     if (!peerLoaded()) { s.classList.add("error"); s.textContent = "تعذّر تحميل PeerJS"; return; }
     const code = (document.getElementById("join-code-input").value || "").trim().toUpperCase();
     if (!code) { s.classList.add("error"); s.textContent = "الصق رمز الغرفة"; return; }
@@ -1161,7 +1326,7 @@
   };
   function joinRoom(code, statusEl) {
     const setS = (txt, err) => { statusEl.classList.toggle("error", !!err); statusEl.textContent = txt; };
-    setS("جارٍ الاتصال…");
+    setS(t("connecting"));
     currentRoom = code;
     armTimeout(setS);
     peer = new Peer(peerOpts());
@@ -1179,7 +1344,7 @@
       conn.on("close", () => { if (online && !isHost) onHostLost(); });
     });
     peer.on("error", (e) => {
-      setS(e.type === "peer-unavailable" ? "الغرفة غير موجودة" : "خطأ: " + e.type, true);
+      setS(e.type === "peer-unavailable" ? t("roomNotFound") : "خطأ: " + e.type, true);
     });
   }
 
@@ -1235,10 +1400,43 @@
   function backToMenu() {
     online = false; isHost = false; migrating = false; state = "menu"; remotes.clear(); hostConn = null; clientConns.clear();
     hideRoomCodeHud(); document.body.classList.remove("in-game");
+    hostLobby = false;
     try { if (peer) peer.destroy(); } catch (_) {}
     document.getElementById("start-screen").classList.remove("hidden");
     document.getElementById("chat-bar").classList.add("hidden");
+    document.getElementById("pause-screen").classList.add("hidden");
+    resetLockUI();
+    syncPowers();
   }
+
+  // ===== الإيقاف المؤقت =====
+  function pauseGame() {
+    if (state !== "playing") return;
+    state = "paused";
+    document.getElementById("pause-screen").classList.remove("hidden");
+    document.getElementById("chat-bar").classList.add("hidden");
+    document.body.classList.remove("in-game");
+    syncPowers();
+  }
+  window.resumeGame = function () {
+    if (state !== "paused") return;
+    state = "playing";
+    document.getElementById("pause-screen").classList.add("hidden");
+    document.getElementById("chat-bar").classList.remove("hidden");
+    document.body.classList.add("in-game");
+    lastT = performance.now(); // تفادي قفزة الزمن
+    syncPowers();
+  };
+  window.exitToMenu = function () {
+    document.getElementById("pause-screen").classList.add("hidden");
+    backToMenu();
+  };
+  // الرجوع/التصغير في الهواتف → إيقاف مؤقت
+  document.addEventListener("visibilitychange", () => { if (document.hidden) pauseGame(); });
+  addEventListener("popstate", () => {
+    if (state === "playing") { pauseGame(); try { history.pushState({ p: "game" }, ""); } catch (_) {} }
+    else if (state === "paused") exitToMenu();
+  });
 
   // ---- الإرسال / البثّ ----
   function netSend(msg) {
@@ -1351,6 +1549,7 @@
   };
   addEventListener("appinstalled", () => document.getElementById("install-btn").classList.add("hidden"));
 
+  buildPowers();
   gameLevel = 1; resetSnake(); initItems(); updateCamera(0, 0);
   document.getElementById("highscore").textContent = fmtNum(highScore);
   requestAnimationFrame((t) => { lastT = t; loop(t); });
