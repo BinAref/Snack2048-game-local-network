@@ -78,11 +78,14 @@
   const lerp = (a, b, t) => a + (b - a) * t;
   const log2 = (v) => Math.log(v) / Math.LN2;
   const rand = (a, b) => a + Math.random() * (b - a);
+  function normAngle(d) { // تطبيع زاوية إلى [-π,π] بأمان (يتحمّل Infinity/NaN ولا يدور أبداً)
+    if (!isFinite(d)) return 0;
+    d = d % (2 * Math.PI);
+    if (d > Math.PI) d -= 2 * Math.PI; else if (d < -Math.PI) d += 2 * Math.PI;
+    return d;
+  }
   function angleLerp(a, target, maxStep) {
-    let d = target - a;
-    while (d > Math.PI) d -= 2 * Math.PI;
-    while (d < -Math.PI) d += 2 * Math.PI;
-    d = clamp(d, -maxStep, maxStep);
+    const d = clamp(normAngle(target - a), -maxStep, maxStep);
     return a + d;
   }
   const sizeForValue = (v) => clamp(CONFIG.BASE_SIZE * (0.9 + CONFIG.SIZE_GROWTH * (log2(v) - 1)), 0.85, 2.6);
@@ -668,6 +671,7 @@
   // =====================================================================
   let particles = [];
   function spawnBurst(x, y, color, n) {
+    if (particles.length > 700) return; // سقف أمان: انفجار ضخم لا يُغرق المصفوف
     for (let i = 0; i < n; i++) {
       const a = rand(0, Math.PI * 2), s = rand(8, 26);
       particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rand(0.3, 0.7), max: 0.7, color, size: rand(2, 5) });
@@ -1496,7 +1500,10 @@
   // ترتيب إيزومتري طوبولوجي: A خلف B إن كان مسقطه كاملاً على الجهة البعيدة في محور
   function isoBehind(A, B) { return (A.x2 <= B.x1 + 0.02) || (A.y2 <= B.y1 + 0.02); }
   function sortIso(items) {
-    const n = items.length, before = items.map(() => []);
+    const n = items.length;
+    // أمان: إن تجاوز العدد المرئي حدّاً متطرفاً، استخدم ترتيب العمق الرخيص O(n log n) بدل O(n²) لمنع أي تعليق
+    if (n > 380) return items.slice().sort((a, b) => a.depth - b.depth);
+    const before = items.map(() => []);
     for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
       const A = items[i], B = items[j], aB = isoBehind(A, B), bB = isoBehind(B, A);
       if (aB && !bB) before[j].push(i);
@@ -1522,12 +1529,17 @@
     for (const bt of bots.values()) if (bt.magnetTimer > 0) drawMagnetRing(bt.x, bt.y);
     drawParticles(true); // شعاع السرعة يُرسم تحت المكعبات
     const drawables = [];
+    // عزل ما هو خارج الشاشة قبل الترتيب الطوبولوجي (O(N²)) — يمنع التعليق مهما كثرت الكائنات دون تغيير المظهر
+    const VIS_M = CONFIG.SCALE * 6 + 120;
+    const onScreen = (wx, wy) => { const p = project(wx, wy); return p.x > -VIS_M && p.x < W + VIS_M && p.y > -VIS_M && p.y < H + VIS_M; };
     const pushCube = (kind, x, y, size, value) => {
+      if (!onScreen(x, y)) return;
       const half = size / 2;
       drawables.push({ kind, x, y, size, value, depth: x + y, x1: x - half, x2: x + half, y1: y - half, y2: y + half });
     };
     for (const f of foods) pushCube("food", f.x, f.y, f.size, f.value);
     for (const o of obstacles) {
+      if (!onScreen(o.x, o.y)) continue;
       const rr = (o.kind === "cyl" || o.kind === "hex") ? Math.min(o.hw, o.hh) * 0.72 : 0;
       const hw = rr || o.hw, hh = rr || o.hh;
       drawables.push({ kind: "wall", o, depth: o.x + o.y, x1: o.x - hw, x2: o.x + hw, y1: o.y - hh, y2: o.y + hh });
@@ -1592,7 +1604,7 @@
     for (const r of remotes.values()) if (r.x != null) add(r.x, r.y, r.color || "#2ee6a6");
     for (const bt of bots.values()) add(bt.x, bt.y, bt.color);
     const ring = Math.min(W, H) * 0.22; // أقرب للاعب
-    const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return Math.abs(d); };
+    const angDiff = (a, b) => Math.abs(normAngle(a - b));
     const arrow = (it, big) => {
       const ex = cx + Math.cos(it.ang) * ring, ey = cy + Math.sin(it.ang) * ring;
       const col = big ? "#ff3b3b" : (it.color || "#2ee6a6"), s = big ? 9 : 5.5;
