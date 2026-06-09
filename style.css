@@ -65,6 +65,18 @@ html, body {
 #medal-icon { font-size: 18px; }
 #medal-name { color: #ffd76a; font-size: 13px; font-weight: 700; }
 
+/* رمز الغرفة أعلى اليسار داخل اللعبة */
+#room-code-hud {
+  margin-top: 7px; display: flex; align-items: center; gap: 8px;
+  background: rgba(8,24,44,0.6); border: 1px solid rgba(80,209,255,0.5);
+  border-radius: 10px; padding: 6px 10px; backdrop-filter: blur(4px);
+}
+#room-code-hud.hidden { display: none; }
+.rc-label { color: #9fc0e6; font-size: 12px; }
+#room-code-hud-val { color: #4fd1ff; font-weight: 900; font-size: 18px; letter-spacing: 3px; }
+#room-code-hud-copy { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; cursor: pointer; font-size: 13px; padding: 2px 6px; }
+#room-code-hud-copy:hover { background: rgba(255,255,255,0.2); }
+
 /* شحنات الجائزة */
 #charges {
   position: fixed; right: 12px; top: 50%; transform: translateY(-50%);

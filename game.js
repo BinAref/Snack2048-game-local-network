@@ -540,6 +540,7 @@
     playerName = nm || "أنت";
     try { localStorage.setItem("snake2048_name", playerName); } catch (e) {}
     online = mode !== "solo"; isHost = mode === "host";
+    if (mode !== "host") hideRoomCodeHud(); // الرمز يظهر للمضيف الخاص فقط
     gameLevel = 1; mapRotation = 0;
     medal.level = 0; medal.leaderId = null; medal.reign = 0; medal.leaderName = "";
     particles = []; floatEmojis = []; playTime = 0; remotes.clear();
@@ -993,49 +994,66 @@
     document.getElementById("play-multi-btn").textContent = priv ? "أنشئ غرفة خاصة" : "العب أونلاين";
     document.getElementById("room-code-wrap").classList.add("hidden");
   };
-  window.copyCode = function () {
-    const code = document.getElementById("room-code-display").textContent;
-    if (code && navigator.clipboard) navigator.clipboard.writeText(code).then(() => notify("نُسخ الكود ✓"));
-  };
+  window.copyCode = function () { copyText(document.getElementById("room-code-display").textContent); };
+  function copyText(code) {
+    if (!code) return;
+    if (navigator.clipboard) navigator.clipboard.writeText(code).then(() => notify("نُسخ الرمز ✓"), () => {});
+    else notify("الرمز: " + code);
+  }
 
   function genCode() { const c = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let s = ""; for (let i = 0; i < 5; i++) s += c[Math.floor(Math.random() * c.length)]; return s; }
   function peerLoaded() { return typeof Peer !== "undefined"; }
 
   const PUBLIC_CODE = "PUBLIC"; // الغرفة العامة المشتركة (رمز ثابت)
   function setName() { const nm = (document.getElementById("name-input").value || "").trim(); playerName = nm || "أنت"; }
+  function mStatus(text, err) { const s = document.getElementById("multi-status"); s.classList.toggle("error", !!err); s.textContent = text; }
+
+  let openTimer = null;
+  function armTimeout(statusFn) {
+    clearTimeout(openTimer);
+    openTimer = setTimeout(() => { if (!online) statusFn("تعذّر الاتصال بخادم اللعب — تحقّق من الإنترنت وحاول ثانية", true); }, 9000);
+  }
+
+  function showRoomCodeHud(code) {
+    const el = document.getElementById("room-code-hud");
+    document.getElementById("room-code-hud-val").textContent = code;
+    el.classList.remove("hidden");
+  }
+  function hideRoomCodeHud() { document.getElementById("room-code-hud").classList.add("hidden"); }
 
   // الزرّ الرئيسي: عام (دخول/استضافة تلقائي) أو خاص (إنشاء برمز)
   window.doPlayMulti = function () {
-    const s = document.getElementById("host-status"); s.classList.remove("error");
-    if (!peerLoaded()) { s.classList.add("error"); s.textContent = "تعذّر تحميل PeerJS (تحقّق من الإنترنت)"; return; }
+    if (!peerLoaded()) { mStatus("تعذّر تحميل PeerJS (تحقّق من الإنترنت ثم أعد التحميل)", true); return; }
     setName();
-    if (document.getElementById("private-room").checked) { s.textContent = "جارٍ إنشاء الغرفة…"; startHost(0, genCode()); }
-    else { s.textContent = "جارٍ الدخول للغرفة العامة…"; startPublic(); }
+    if (document.getElementById("private-room").checked) { mStatus("جارٍ إنشاء الغرفة الخاصة…"); startHost(0, genCode()); }
+    else { mStatus("جارٍ الدخول للغرفة العامة…"); startPublic(); }
   };
 
   // الغرفة العامة: حاول أن تكون المضيف، وإن كان موجوداً فانضمّ إليه
   function startPublic() {
+    armTimeout(mStatus);
     peer = new Peer(PEER_PREFIX + PUBLIC_CODE, { debug: 1 });
-    peer.on("open", (id) => { becomeHost(id, null); document.getElementById("host-status").textContent = "أنت مضيف الغرفة العامة 🌍"; });
+    peer.on("open", (id) => { clearTimeout(openTimer); roomCode = ""; becomeHost(id); hideRoomCodeHud(); mStatus("أنت مضيف الغرفة العامة 🌍"); });
     peer.on("error", (e) => {
-      if (e.type === "unavailable-id") { try { peer.destroy(); } catch (_) {} joinRoom(PUBLIC_CODE, document.getElementById("host-status")); }
-      else { const s = document.getElementById("host-status"); s.classList.add("error"); s.textContent = "خطأ: " + e.type; }
+      if (e.type === "unavailable-id") { try { peer.destroy(); } catch (_) {} mStatus("جارٍ الانضمام للغرفة العامة…"); joinRoom(PUBLIC_CODE, document.getElementById("multi-status")); }
+      else mStatus("خطأ: " + e.type, true);
     });
   }
 
   // غرفة خاصة برمز
   function startHost(attempt, code) {
     roomCode = code;
+    armTimeout(mStatus);
     peer = new Peer(PEER_PREFIX + roomCode, { debug: 1 });
     peer.on("open", (id) => {
-      becomeHost(id, roomCode);
-      document.getElementById("room-code-wrap").classList.remove("hidden");
-      document.getElementById("room-code-display").textContent = roomCode;
-      document.getElementById("host-status").textContent = "الغرفة جاهزة — شارك الرمز!";
+      clearTimeout(openTimer);
+      becomeHost(id);
+      showRoomCodeHud(roomCode);
+      mStatus("الغرفة جاهزة — الرمز ظاهر أعلى اليسار 👈");
     });
     peer.on("error", (e) => {
       if (e.type === "unavailable-id" && attempt < 6) { try { peer.destroy(); } catch (_) {} startHost(attempt + 1, genCode()); }
-      else { const s = document.getElementById("host-status"); s.classList.add("error"); s.textContent = "خطأ: " + e.type; }
+      else mStatus("خطأ: " + e.type, true);
     });
   }
   function becomeHost(id) {
@@ -1068,28 +1086,31 @@
     joinRoom(code, s);
   };
   function joinRoom(code, statusEl) {
-    statusEl.classList.remove("error"); statusEl.textContent = "جارٍ الاتصال…";
+    const setS = (txt, err) => { statusEl.classList.toggle("error", !!err); statusEl.textContent = txt; };
+    setS("جارٍ الاتصال…");
+    armTimeout(setS);
     peer = new Peer({ debug: 1 });
     peer.on("open", () => {
       myId = peer.id;
       const conn = peer.connect(PEER_PREFIX + code, { metadata: { name: playerName }, reliable: true });
       conn.on("data", (d) => handleClientMsg(d));
       conn.on("open", () => {
+        clearTimeout(openTimer);
         hostConn = conn; isHost = false; online = true;
-        statusEl.textContent = "متصل ✓";
+        setS("متصل ✓");
         beginPlay("client");
         netSend({ t: "hello", name: playerName });
       });
       conn.on("close", () => { if (online) { notify("انقطع الاتصال بالمضيف"); backToMenu(); } });
     });
     peer.on("error", (e) => {
-      statusEl.classList.add("error");
-      statusEl.textContent = e.type === "peer-unavailable" ? "الغرفة غير موجودة" : "خطأ: " + e.type;
+      setS(e.type === "peer-unavailable" ? "الغرفة غير موجودة" : "خطأ: " + e.type, true);
     });
   }
 
   function backToMenu() {
     online = false; isHost = false; state = "menu"; remotes.clear(); hostConn = null; clientConns.clear();
+    hideRoomCodeHud();
     try { if (peer) peer.destroy(); } catch (_) {}
     document.getElementById("start-screen").classList.remove("hidden");
     document.getElementById("chat-bar").classList.add("hidden");
@@ -1193,6 +1214,7 @@
   document.getElementById("play-btn").addEventListener("click", startGame);
   document.getElementById("restart-btn").addEventListener("click", () => { restart(); });
   document.getElementById("win-restart-btn").addEventListener("click", () => { restart(); });
+  document.getElementById("room-code-hud-copy").addEventListener("click", () => { copyText(document.getElementById("room-code-hud-val").textContent); });
   try { const sv = localStorage.getItem("snake2048_name"); if (sv) document.getElementById("name-input").value = sv; } catch (e) {}
 
   gameLevel = 1; resetSnake(); initItems(); updateCamera(0, 0);

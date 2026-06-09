@@ -20,6 +20,11 @@
       <div class="score-line"><span class="label">المرحلة</span><span id="level" class="value">1</span></div>
     </div>
     <div id="medal-badge" class="hidden"><span id="medal-icon">🥉</span><span id="medal-name"></span></div>
+    <div id="room-code-hud" class="hidden">
+      <span class="rc-label">رمز الغرفة</span>
+      <span id="room-code-hud-val"></span>
+      <button id="room-code-hud-copy" title="نسخ">📋</button>
+    </div>
     <div id="boost-bar-wrap">
       <div id="boost-bar-fill"></div>
       <span id="boost-bar-label">⚡</span>
@@ -72,6 +77,7 @@
         <div id="room-hint" class="hint-small">غرفة عامة: يدخلها أي شخص مباشرة بدون رمز.</div>
 
         <button id="play-multi-btn" class="main-btn" onclick="doPlayMulti()">العب أونلاين</button>
+        <div id="multi-status" class="status-msg"></div>
 
         <div id="room-code-wrap" class="hidden">
           <div class="room-label">رمز الغرفة — أرسله لأصدقائك</div>
