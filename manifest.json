@@ -1,0 +1,16 @@
+{
+  "name": "Snake 2048",
+  "short_name": "Snake2048",
+  "description": "لعبة ثعبان المكعبات 2048 — فردي وجماعي",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0b1830",
+  "theme_color": "#0b1830",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

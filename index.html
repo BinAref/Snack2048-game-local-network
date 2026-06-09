@@ -2,9 +2,19 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Snake 2048</title>
   <link rel="stylesheet" href="style.css" />
+
+  <!-- PWA: قابل للتثبيت كتطبيق -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0b1830" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Snake 2048" />
+  <link rel="icon" href="icon.svg" />
+  <link rel="apple-touch-icon" href="icon.svg" />
 </head>
 <body>
   <canvas id="game"></canvas>
@@ -44,6 +54,7 @@
       <p>حرّك الماوس لتوجيه الثعبان · اضغط باستمرار للتسارع</p>
 
       <input id="name-input" type="text" maxlength="14" placeholder="اكتب اسمك" autocomplete="off"/>
+      <button id="install-btn" class="ghost-btn hidden" onclick="installApp()">📲 ثبّت التطبيق</button>
 
       <div class="hint">
         <span><b>⚡</b> سرعة</span>
@@ -129,16 +140,26 @@
   <!-- إشعارات جانبية -->
   <div id="notifications"></div>
 
+  <!-- تحكّم اللمس (هاتف) -->
+  <div id="joystick" class="hidden"><div id="joystick-knob"></div></div>
+  <button id="boost-btn">⚡</button>
+
   <!-- دردشة الرموز -->
   <div id="chat-bar" class="hidden">
-    <button data-emoji="👍">👍</button>
-    <button data-emoji="😱">😱</button>
-    <button data-emoji="🔥">🔥</button>
-    <button data-emoji="😂">😂</button>
-    <button data-emoji="💀">💀</button>
+    <button data-emoji="👍">👍<span class="kbd">1</span></button>
+    <button data-emoji="😱">😱<span class="kbd">2</span></button>
+    <button data-emoji="🔥">🔥<span class="kbd">3</span></button>
+    <button data-emoji="😂">😂<span class="kbd">4</span></button>
+    <button data-emoji="💀">💀<span class="kbd">5</span></button>
   </div>
 
-  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="game.js"></script>
+  <!-- PeerJS للأونلاين فقط؛ defer حتى لا يعطّل اللعب الفردي بدون إنترنت -->
+  <script defer src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script defer src="game.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+    }
+  </script>
 </body>
 </html>

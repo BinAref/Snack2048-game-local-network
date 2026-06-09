@@ -14,14 +14,14 @@
   const CONFIG = {
     WORLD: 95, SCALE: 26, ISO_X: 1.0, ISO_Y: 0.5,
     BASE_SIZE: 1.0, SIZE_GROWTH: 0.12, CUBE_H: 0.62,
-    SEG_GAP: 0.58, SPEED: 8.5, TURN_RATE: 6.8,
+    SEG_GAP: 1.18, SPEED: 8.5, TURN_RATE: 6.8,  // >1 = فجوة صغيرة بين المكعبات (خلف بعضها لا فوقها)
 
     SPEEDCUBE_MULT: 2.0, SPEEDCUBE_TIME: 3.0,
     BOOST_MULT: 1.5, BOOST_DRAIN: 0.25, BOOST_REFILL: 0.10,
 
     FOOD_COUNT: 95, POWERUP_COUNT: 8,
     MOVING_FOOD_RATIO: 0.18,      // نسبة الطعام المتحرك
-    DANGER_SEVER_INTERVAL: 2.0,   // كل ثانيتين يسقط آخر مكعب داخل منطقة الخطر
+    DANGER_SEVER_INTERVAL: 0.5,   // كل نصف ثانية يسقط آخر مكعب داخل منطقة الخطر
 
     MAP_INTERVAL: 300,            // تغيير الخريطة كل 5 دقائق
     REIGN_STEP: 300,              // كل 5 دقائق في الصدارة = ميدالية
@@ -61,6 +61,8 @@
     canvas.width = Math.floor(W * DPR); canvas.height = Math.floor(H * DPR);
     canvas.style.width = W + "px"; canvas.style.height = H + "px";
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    // تكبير الكاميرا حسب حجم الشاشة (الهاتف يرى مساحة مناسبة)
+    CONFIG.SCALE = Math.max(17, Math.min(27, Math.min(W, H) / 22));
   }
   addEventListener("resize", resize); resize();
 
@@ -419,19 +421,22 @@
     }
   }
   function spawnMergeFx() { spawnBurst(snake.x, snake.y, "#fff6c2", 14); }
-  // أثر السرعة: جسيمات تتطاير خلف الثعبان أثناء الاندفاع
+  // أثر السرعة: خطوط انسيابية متوهّجة + شرارات من خلف الذيل (لا توهّج فوق المكعبات)
   function spawnBoostTrail() {
     const col = snake.speedTimer > 0 ? "#ffb020" : "#19d3ff";
     const body = bodyPositions();
-    for (let k = 0; k < body.length; k += 2) {
-      if (Math.random() > 0.5) continue;
-      const b = body[k];
+    const tail = body[body.length - 1] || { x: snake.x, y: snake.y };
+    const bx = -Math.cos(snake.angle), by = -Math.sin(snake.angle); // اتجاه الخلف
+    for (let i = 0; i < 3; i++) {
+      const spread = rand(-0.45, 0.45);
       particles.push({
-        x: b.x + rand(-0.3, 0.3), y: b.y + rand(-0.3, 0.3),
-        vx: -Math.cos(snake.angle) * 7 + rand(-3, 3), vy: -Math.sin(snake.angle) * 7 + rand(-3, 3),
-        life: 0.45, max: 0.45, color: col, size: rand(2, 5),
+        x: tail.x - by * spread, y: tail.y + bx * spread,
+        vx: bx * rand(6, 10) + rand(-1, 1), vy: by * rand(6, 10) + rand(-1, 1),
+        life: rand(0.35, 0.6), max: 0.6, color: col, size: rand(2.5, 5), streak: true, glow: col,
       });
     }
+    if (Math.random() < 0.35) // شرارة بيضاء لامعة
+      particles.push({ x: tail.x, y: tail.y, vx: bx * rand(4, 7), vy: by * rand(4, 7), life: 0.3, max: 0.3, color: "#ffffff", size: rand(2, 3.4), streak: true, glow: col });
   }
   function spawnEatFx(x, y) { spawnBurst(x, y, "#bfe9ff", 6); }
   function spawnDeathFx() {
@@ -445,13 +450,35 @@
     }
   }
   function drawParticles() {
+    ctx.save();
     for (const p of particles) {
       const pr = project(p.x, p.y);
       ctx.globalAlpha = clamp(p.life / p.max, 0, 1);
-      ctx.fillStyle = p.color;
-      ctx.beginPath(); ctx.arc(pr.x, pr.y - 10, p.size, 0, Math.PI * 2); ctx.fill();
+      if (p.streak) {
+        const back = project(p.x - p.vx * 0.045, p.y - p.vy * 0.045);
+        ctx.shadowColor = p.glow || p.color; ctx.shadowBlur = 12;
+        ctx.strokeStyle = p.color; ctx.lineWidth = p.size; ctx.lineCap = "round";
+        ctx.beginPath(); ctx.moveTo(pr.x, pr.y - 10); ctx.lineTo(back.x, back.y - 10); ctx.stroke();
+      } else {
+        ctx.shadowBlur = 0; ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(pr.x, pr.y - 10, p.size, 0, Math.PI * 2); ctx.fill();
+      }
     }
-    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+  // نفّاثة توهّج خلف الذيل (تُرسم تحت المكعبات)
+  function drawBoostJet() {
+    const body = bodyPositions();
+    const tail = body[body.length - 1] || { x: snake.x, y: snake.y };
+    const bx = -Math.cos(snake.angle), by = -Math.sin(snake.angle);
+    const c = project(tail.x + bx * 1.0, tail.y + by * 1.0);
+    const col = snake.speedTimer > 0 ? "255,176,32" : "25,211,255";
+    const rr = (sizeForValue(headValue()) * CONFIG.SCALE) * (0.9 + 0.18 * Math.sin(now * 22));
+    ctx.save();
+    const g = ctx.createRadialGradient(c.x, c.y - 8, 2, c.x, c.y - 8, rr);
+    g.addColorStop(0, `rgba(${col},0.55)`); g.addColorStop(0.5, `rgba(${col},0.22)`); g.addColorStop(1, `rgba(${col},0)`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, c.y - 8, rr, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
   }
 
   // رموز عائمة
@@ -475,15 +502,59 @@
   // الإدخال
   // =====================================================================
   let pointer = { x: W / 2, y: H / 2 + 80 };
-  const input = { holding: false, up: false, down: false, left: false, right: false, boostKey: false };
+  const input = { holding: false, up: false, down: false, left: false, right: false, boostKey: false, joyActive: false, joyX: 0, joyY: 0 };
+  const touchDevice = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
+  if (touchDevice) document.body.classList.add("touch");
+
+  // ماوس (سطح المكتب)
   canvas.addEventListener("mousemove", (e) => { pointer.x = e.clientX; pointer.y = e.clientY; });
   canvas.addEventListener("mousedown", (e) => { if (e.button === 0) input.holding = true; });
   addEventListener("mouseup", (e) => { if (e.button === 0) input.holding = false; });
   canvas.addEventListener("mouseleave", () => { input.holding = false; });
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
-  canvas.addEventListener("touchstart", (e) => { if (e.touches[0]) { pointer.x = e.touches[0].clientX; pointer.y = e.touches[0].clientY; } input.holding = true; });
-  canvas.addEventListener("touchmove", (e) => { if (e.touches[0]) { pointer.x = e.touches[0].clientX; pointer.y = e.touches[0].clientY; } e.preventDefault(); }, { passive: false });
-  addEventListener("touchend", () => { input.holding = false; });
+
+  // عصا تحكّم لمسية (تظهر حيث تلمس)
+  const joyEl = document.getElementById("joystick");
+  const knobEl = document.getElementById("joystick-knob");
+  let joyId = null, joyBaseX = 0, joyBaseY = 0;
+  const JOY_R = 55, JOY_BOX = 65;
+  canvas.addEventListener("touchstart", (e) => {
+    for (const t of e.changedTouches) {
+      if (joyId === null) {
+        joyId = t.identifier; joyBaseX = t.clientX; joyBaseY = t.clientY;
+        input.joyActive = true; input.joyX = 0; input.joyY = 0;
+        joyEl.style.left = joyBaseX + "px"; joyEl.style.top = joyBaseY + "px";
+        knobEl.style.left = JOY_BOX + "px"; knobEl.style.top = JOY_BOX + "px";
+        joyEl.classList.remove("hidden");
+      }
+    }
+    e.preventDefault();
+  }, { passive: false });
+  canvas.addEventListener("touchmove", (e) => {
+    for (const t of e.changedTouches) {
+      if (t.identifier === joyId) {
+        const dx = t.clientX - joyBaseX, dy = t.clientY - joyBaseY;
+        const d = Math.hypot(dx, dy) || 1, cl = Math.min(d, JOY_R);
+        input.joyX = dx; input.joyY = dy; // اتجاه على الشاشة
+        knobEl.style.left = (JOY_BOX + (dx / d) * cl) + "px";
+        knobEl.style.top = (JOY_BOX + (dy / d) * cl) + "px";
+      }
+    }
+    e.preventDefault();
+  }, { passive: false });
+  function endJoy(e) {
+    for (const t of e.changedTouches) if (t.identifier === joyId) { joyId = null; input.joyActive = false; joyEl.classList.add("hidden"); }
+  }
+  canvas.addEventListener("touchend", endJoy);
+  canvas.addEventListener("touchcancel", endJoy);
+
+  // زرّ التسارع
+  const boostBtn = document.getElementById("boost-btn");
+  const setBoost = (v) => { input.boostKey = v; };
+  boostBtn.addEventListener("pointerdown", (e) => { e.preventDefault(); setBoost(true); });
+  boostBtn.addEventListener("pointerup", () => setBoost(false));
+  boostBtn.addEventListener("pointerleave", () => setBoost(false));
+  boostBtn.addEventListener("pointercancel", () => setBoost(false));
   const isTyping = () => { const el = document.activeElement; return el && el.tagName === "INPUT"; };
   addEventListener("keydown", (e) => {
     if (isTyping()) return;
@@ -494,6 +565,11 @@
       case "ArrowRight": case "KeyD": input.right = true; e.preventDefault(); break;
       case "Space": input.boostKey = true; e.preventDefault(); break;
       case "KeyE": useCharge(); break;
+      case "Digit1": case "Numpad1": emojiByIndex(0); break;
+      case "Digit2": case "Numpad2": emojiByIndex(1); break;
+      case "Digit3": case "Numpad3": emojiByIndex(2); break;
+      case "Digit4": case "Numpad4": emojiByIndex(3); break;
+      case "Digit5": case "Numpad5": emojiByIndex(4); break;
     }
   });
   addEventListener("keyup", (e) => {
@@ -539,7 +615,7 @@
     const nm = (document.getElementById("name-input").value || "").trim();
     playerName = nm || "أنت";
     try { localStorage.setItem("snake2048_name", playerName); } catch (e) {}
-    online = mode !== "solo"; isHost = mode === "host";
+    online = mode !== "solo"; isHost = mode === "host"; migrating = false;
     if (mode !== "host") hideRoomCodeHud(); // الرمز يظهر للمضيف الخاص فقط
     gameLevel = 1; mapRotation = 0;
     medal.level = 0; medal.leaderId = null; medal.reign = 0; medal.leaderName = "";
@@ -556,6 +632,7 @@
     updateCharges();
     document.getElementById("level").textContent = gameLevel;
     document.getElementById("chat-bar").classList.remove("hidden");
+    document.body.classList.add("in-game");
     state = "playing";
     document.getElementById("start-screen").classList.add("hidden");
     document.getElementById("over-screen").classList.add("hidden");
@@ -572,6 +649,7 @@
     document.getElementById("final-score").textContent = fmtNum(score());
     document.getElementById("over-screen").classList.remove("hidden");
     document.getElementById("chat-bar").classList.add("hidden");
+    document.body.classList.remove("in-game");
   }
 
   function currentSpeed() {
@@ -632,6 +710,7 @@
     document.getElementById("win-name").textContent = winner;
     document.getElementById("win-screen").classList.remove("hidden");
     document.getElementById("chat-bar").classList.add("hidden");
+    document.body.classList.remove("in-game");
   }
   function useCharge() {
     if (snake.charges <= 0 || state !== "playing") return;
@@ -645,7 +724,7 @@
     el.innerHTML = "";
     for (let i = 0; i < snake.charges; i++) {
       const b = document.createElement("button");
-      b.className = "charge-btn"; b.innerHTML = "×2<small>E</small>";
+      b.className = "charge-btn"; b.innerHTML = "×2<span class='kbd'>E</span>";
       b.onclick = useCharge; el.appendChild(b);
     }
   }
@@ -664,11 +743,13 @@
     else snake.stamina = Math.min(1, snake.stamina + CONFIG.BOOST_REFILL * dt);
     if (snake.speedTimer > 0) snake.speedTimer = Math.max(0, snake.speedTimer - dt);
 
-    // توجيه
+    // توجيه: لوحة المفاتيح > عصا اللمس > الماوس
     if (input.up || input.down || input.left || input.right) {
       const sx = (input.right ? 1 : 0) - (input.left ? 1 : 0), sy = (input.down ? 1 : 0) - (input.up ? 1 : 0);
       if (sx || sy) steerTo(sx, sy, dt);
-    } else {
+    } else if (input.joyActive) {
+      if (Math.hypot(input.joyX, input.joyY) > 8) steerTo(input.joyX, input.joyY, dt);
+    } else if (!touchDevice) {
       const sdx = pointer.x - W / 2, sdy = pointer.y - H / 2;
       if (Math.hypot(sdx, sdy) > 14) steerTo(sdx, sdy, dt);
     }
@@ -739,7 +820,7 @@
       }
     }
 
-    if (online) resolveCombat();
+    if (online) resolveCombat(dt);
 
     // بثّ حالتي + (للمضيف) حالة العالم
     if (online) {
@@ -754,51 +835,55 @@
   // =====================================================================
   // القتال (أونلاين): رأس‑برأس + عضّ الجسم
   // =====================================================================
-  function resolveCombat() {
+  function resolveCombat(dt) {
     const hv = headValue(), hSize = sizeForValue(hv);
     for (const r of remotes.values()) {
+      if (r.biteCD > 0) r.biteCD -= dt;
       if (!r.body || !r.body.length) continue;
       const rHeadV = r.head || (r.body[0] && r.body[0].v) || 2;
       const rHeadS = sizeForValue(rHeadV);
-      // رأس برأس
       const dHead = Math.hypot(r.x - snake.x, r.y - snake.y);
+      // رأس برأس
       if (dHead < (hSize + rHeadS) * 0.5) {
-        if (hv > rHeadV) { netSend({ t: "cut", target: r.id, index: 0 }); continue; }
-        else if (hv === rHeadV) {
-          // تصادم: ادفع رأسي بعيداً (السرعة ترجّح)
+        if (hv > rHeadV) { biteRemote(r, 0, rHeadV); continue; }        // الأكبر يأكل الأصغر
+        else if (hv === rHeadV) {                                       // تصادم: دفع (السرعة ترجّح)
           const nx = (snake.x - r.x) / (dHead || 1), ny = (snake.y - r.y) / (dHead || 1);
-          let push = 0.9 * (r.boosting ? 1.3 : 1) * (snake.boosting ? 0.4 : 1);
-          snake.x += nx * push; snake.y += ny * push;
-          continue;
+          const push = 0.9 * (r.boosting ? 1.3 : 1) * (snake.boosting ? 0.4 : 1);
+          snake.x += nx * push; snake.y += ny * push; continue;
+        } else {                                                        // رأسي أصغر: الطرف الآخر سيأكلني
+          const nx = (snake.x - r.x) / (dHead || 1), ny = (snake.y - r.y) / (dHead || 1);
+          snake.x += nx * 0.5; snake.y += ny * 0.5;
         }
-        // رأسي أصغر: الطرف الآخر سيعضّني — ابتعد قليلاً
-        const nx = (snake.x - r.x) / (dHead || 1), ny = (snake.y - r.y) / (dHead || 1);
-        snake.x += nx * 0.5; snake.y += ny * 0.5;
       }
-      // عضّ الجسم: أصغر من رأسي فقط
+      // عضّ الجسم: فقط مكعب أصغر من رأسي (المساوي مملوك = يُعبَر)
       for (let k = 1; k < r.body.length; k++) {
         const b = r.body[k];
         if (b.v < hv && Math.hypot(b.x - snake.x, b.y - snake.y) < (hSize + sizeForValue(b.v)) * 0.5) {
-          netSend({ t: "cut", target: r.id, index: k });
-          break;
+          biteRemote(r, k, b.v); break;
         }
       }
     }
   }
+  // عضّ مكعب الخصم رقم k: آكله أنا، وما بعده يسقط طعاماً (يطبّقه الخصم)
+  function biteRemote(r, k, v) {
+    if (r.biteCD > 0) return;
+    r.biteCD = 0.4;
+    eatValue(v); spawnEatFx(snake.x, snake.y);
+    netSend({ t: "cut", target: r.id, index: k });
+  }
 
-  // تطبيق قطع على ثعباني (وصلني عبر المضيف)
+  // وصلني عضّ: المهاجم أكل المكعب index، وما بعده (index+1..) يسقط طعاماً، وأحتفظ بـ 0..index-1
   function applyCut(index) {
     if (state !== "playing") return;
-    if (index <= 0) { gameOver(); return; }
-    if (index >= snake.values.length) return;
     const body = bodyPositions();
-    const dropped = snake.values.slice(index);
-    snake.values.length = index;
-    for (let k = 0; k < dropped.length; k++) {
-      const pos = body[index + k] || { x: snake.x, y: snake.y };
-      dropLoose(pos.x, pos.y, dropped[k]);
+    const dropped = snake.values.slice(index + 1);
+    for (let j = 0; j < dropped.length; j++) {
+      const pos = body[index + 1 + j] || { x: snake.x, y: snake.y };
+      dropLoose(pos.x, pos.y, dropped[j]);
       spawnBurst(pos.x, pos.y, "#ff5d73", 8);
     }
+    snake.values.length = Math.max(0, index); // المكعب index أكله المهاجم
+    if (snake.values.length === 0) { gameOver(); return; } // أُكل الرأس → خسارة
   }
 
   // =====================================================================
@@ -846,6 +931,7 @@
   function render() {
     drawGround();
     for (const p of powerups) drawCard(p.x, p.y, p.size, p.type);
+    if (state === "playing" && (snake.boosting || snake.speedTimer > 0)) drawBoostJet(); // تحت المكعبات
     const drawables = [];
     for (const f of foods) drawables.push({ kind: "food", x: f.x, y: f.y, size: f.size, value: f.value, depth: f.x + f.y });
     for (const o of obstacles) drawables.push({ kind: "wall", o, depth: o.x + o.y });
@@ -861,30 +947,9 @@
       else drawCube(d.x, d.y, d.size, { color: colorForValue(d.value), label: fmtNum(d.value) });
     }
     drawParticles();
-    if (snake.boosting || snake.speedTimer > 0) drawBoostAura();
     // أسماء ورموز الثعابين البعيدة
     for (const r of remotes.values()) drawRemoteLabel(r);
     drawArrow(); drawNameLabel(); drawGauges(); drawEmojis();
-  }
-  // هالة سرعة نابضة حول الرأس + خطوط اندفاع
-  function drawBoostAura() {
-    const c = project(snake.x, snake.y);
-    const col = snake.speedTimer > 0 ? "255,176,32" : "25,211,255";
-    const rr = sizeForValue(headValue()) * CONFIG.SCALE * (1.4 + 0.25 * Math.sin(now * 18));
-    ctx.save();
-    const g = ctx.createRadialGradient(c.x, c.y, rr * 0.2, c.x, c.y, rr);
-    g.addColorStop(0, `rgba(${col},0.45)`); g.addColorStop(1, `rgba(${col},0)`);
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, c.y, rr, 0, Math.PI * 2); ctx.fill();
-    // خطوط اندفاع خلف الرأس
-    const ah = project(snake.x + Math.cos(snake.angle), snake.y + Math.sin(snake.angle));
-    let dx = ah.x - c.x, dy = ah.y - c.y; const len = Math.hypot(dx, dy) || 1; dx /= len; dy /= len;
-    ctx.strokeStyle = `rgba(${col},0.5)`; ctx.lineWidth = 2;
-    for (let i = 0; i < 3; i++) {
-      const off = (i - 1) * 10, ox = -dy * off, oy = dx * off;
-      const s = 18 + (now * 120 % 26);
-      ctx.beginPath(); ctx.moveTo(c.x - dx * s + ox, c.y - dy * s + oy); ctx.lineTo(c.x - dx * (s + 14) + ox, c.y - dy * (s + 14) + oy); ctx.stroke();
-    }
-    ctx.restore();
   }
   function drawRemoteLabel(r) {
     if (r.x == null) return;
@@ -968,16 +1033,24 @@
     box.appendChild(d); setTimeout(() => d.remove(), 3000);
   }
 
-  // دردشة الرموز
-  document.querySelectorAll("#chat-bar button").forEach((b) => {
-    b.addEventListener("click", () => { showEmoji(b.dataset.emoji); if (online) netSend({ t: "emoji", em: b.dataset.emoji }); });
-  });
+  // دردشة الرموز (نقر أو أرقام 1..5)
+  const chatButtons = [...document.querySelectorAll("#chat-bar button")];
+  function sendEmoji(em) { if (!em) return; showEmoji(em); if (online) netSend({ t: "emoji", em }); }
+  chatButtons.forEach((b) => b.addEventListener("click", () => sendEmoji(b.dataset.emoji)));
+  function emojiByIndex(i) { const b = chatButtons[i]; if (b) sendEmoji(b.dataset.emoji); }
 
   // =====================================================================
   // الشبكة (PeerJS) — نجمة: المضيف يملك العالم ويعيد توزيع الحالة
   // =====================================================================
   const PEER_PREFIX = "snk2048-";
-  let roomCode = "", netItemsCounter = 0;
+  let roomCode = "", netItemsCounter = 0, currentRoom = "", migrating = false;
+
+  // خادم الإشارة: افتراضياً سحابة PeerJS (إنترنت). للعب على شبكة محلية بلا إنترنت
+  // شغّل خادم peerjs المحلي (انظر server.js) وضع enabled:true وIP جهاز المضيف.
+  const LAN = { enabled: false, host: "192.168.1.10", port: 9000, path: "/" };
+  function peerOpts() {
+    return LAN.enabled ? { host: LAN.host, port: LAN.port, path: LAN.path, debug: 1 } : { debug: 1 };
+  }
 
   // واجهة اللوحات
   window.switchMode = function (mode) {
@@ -1032,7 +1105,8 @@
   // الغرفة العامة: حاول أن تكون المضيف، وإن كان موجوداً فانضمّ إليه
   function startPublic() {
     armTimeout(mStatus);
-    peer = new Peer(PEER_PREFIX + PUBLIC_CODE, { debug: 1 });
+    currentRoom = PUBLIC_CODE;
+    peer = new Peer(PEER_PREFIX + PUBLIC_CODE, peerOpts());
     peer.on("open", (id) => { clearTimeout(openTimer); roomCode = ""; becomeHost(id); hideRoomCodeHud(); mStatus("أنت مضيف الغرفة العامة 🌍"); });
     peer.on("error", (e) => {
       if (e.type === "unavailable-id") { try { peer.destroy(); } catch (_) {} mStatus("جارٍ الانضمام للغرفة العامة…"); joinRoom(PUBLIC_CODE, document.getElementById("multi-status")); }
@@ -1042,9 +1116,9 @@
 
   // غرفة خاصة برمز
   function startHost(attempt, code) {
-    roomCode = code;
+    roomCode = code; currentRoom = code;
     armTimeout(mStatus);
-    peer = new Peer(PEER_PREFIX + roomCode, { debug: 1 });
+    peer = new Peer(PEER_PREFIX + roomCode, peerOpts());
     peer.on("open", (id) => {
       clearTimeout(openTimer);
       becomeHost(id);
@@ -1088,8 +1162,9 @@
   function joinRoom(code, statusEl) {
     const setS = (txt, err) => { statusEl.classList.toggle("error", !!err); statusEl.textContent = txt; };
     setS("جارٍ الاتصال…");
+    currentRoom = code;
     armTimeout(setS);
-    peer = new Peer({ debug: 1 });
+    peer = new Peer(peerOpts());
     peer.on("open", () => {
       myId = peer.id;
       const conn = peer.connect(PEER_PREFIX + code, { metadata: { name: playerName }, reliable: true });
@@ -1101,16 +1176,65 @@
         beginPlay("client");
         netSend({ t: "hello", name: playerName });
       });
-      conn.on("close", () => { if (online) { notify("انقطع الاتصال بالمضيف"); backToMenu(); } });
+      conn.on("close", () => { if (online && !isHost) onHostLost(); });
     });
     peer.on("error", (e) => {
       setS(e.type === "peer-unavailable" ? "الغرفة غير موجودة" : "خطأ: " + e.type, true);
     });
   }
 
+  // ====== نقل الاستضافة تلقائياً عند خروج المضيف ======
+  function onHostLost() {
+    if (!online || isHost || migrating) return;
+    migrating = true; hostConn = null;
+    const newHostId = electNewHost();
+    if (!newHostId) { backToMenu(); migrating = false; return; } // لم يبقَ أحد → أُغلقت الغرفة
+    if (newHostId === myId) claimHost(0);   // أنا المتصدّر → أصبح المضيف
+    else reconnectToHost(0);                // غيري → أعد الاتصال بالمضيف الجديد
+  }
+  // اختيار حتمي: المتصدّر بالنقاط (تعادل: أصغر مُعرّف)، باستثناء المضيف القديم
+  function electNewHost() {
+    const oldHostId = PEER_PREFIX + currentRoom;
+    const cands = [{ id: myId, score: score() }];
+    for (const r of remotes.values()) cands.push({ id: r.id, score: r.score || 0 });
+    const filtered = cands.filter((c) => c.id !== oldHostId);
+    if (!filtered.length) return null;
+    filtered.sort((a, b) => (b.score - a.score) || (a.id < b.id ? -1 : 1));
+    return filtered[0].id;
+  }
+  function claimHost(attempt) {
+    try { if (peer) peer.destroy(); } catch (_) {}
+    remotes.clear();
+    peer = new Peer(PEER_PREFIX + currentRoom, peerOpts());
+    peer.on("open", (id) => {
+      myId = id; isHost = true; online = true; migrating = false;
+      peer.on("connection", onHostConnection);
+      if (currentRoom !== PUBLIC_CODE) showRoomCodeHud(currentRoom); else hideRoomCodeHud();
+    });
+    peer.on("error", (e) => {
+      if (e.type === "unavailable-id" && attempt < 15) setTimeout(() => claimHost(attempt + 1), 600);
+      else { migrating = false; backToMenu(); }
+    });
+  }
+  function reconnectToHost(attempt) {
+    try { if (peer) peer.destroy(); } catch (_) {}
+    peer = new Peer(peerOpts());
+    peer.on("open", () => {
+      myId = peer.id;
+      const conn = peer.connect(PEER_PREFIX + currentRoom, { metadata: { name: playerName }, reliable: true });
+      conn.on("data", (d) => handleClientMsg(d));
+      conn.on("open", () => { hostConn = conn; isHost = false; online = true; migrating = false; netSend({ t: "hello", name: playerName }); });
+      conn.on("close", () => { if (online && !isHost) onHostLost(); });
+    });
+    peer.on("error", () => {
+      if (attempt < 15) setTimeout(() => reconnectToHost(attempt + 1), 700);
+      else { migrating = false; backToMenu(); }
+    });
+  }
+
   function backToMenu() {
-    online = false; isHost = false; state = "menu"; remotes.clear(); hostConn = null; clientConns.clear();
-    hideRoomCodeHud();
+    online = false; isHost = false; migrating = false; state = "menu"; remotes.clear(); hostConn = null; clientConns.clear();
+    hideRoomCodeHud(); document.body.classList.remove("in-game");
     try { if (peer) peer.destroy(); } catch (_) {}
     document.getElementById("start-screen").classList.remove("hidden");
     document.getElementById("chat-bar").classList.add("hidden");
@@ -1216,6 +1340,16 @@
   document.getElementById("win-restart-btn").addEventListener("click", () => { restart(); });
   document.getElementById("room-code-hud-copy").addEventListener("click", () => { copyText(document.getElementById("room-code-hud-val").textContent); });
   try { const sv = localStorage.getItem("snake2048_name"); if (sv) document.getElementById("name-input").value = sv; } catch (e) {}
+
+  // تثبيت التطبيق (PWA)
+  let deferredPrompt = null;
+  addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferredPrompt = e; document.getElementById("install-btn").classList.remove("hidden"); });
+  window.installApp = function () {
+    if (!deferredPrompt) { notify("افتح قائمة المتصفح ثم \"إضافة إلى الشاشة الرئيسية\""); return; }
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.finally(() => { deferredPrompt = null; document.getElementById("install-btn").classList.add("hidden"); });
+  };
+  addEventListener("appinstalled", () => document.getElementById("install-btn").classList.add("hidden"));
 
   gameLevel = 1; resetSnake(); initItems(); updateCamera(0, 0);
   document.getElementById("highscore").textContent = fmtNum(highScore);
