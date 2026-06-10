@@ -170,11 +170,12 @@ body::after {
 /* قوى BinAref */
 #powers { position: fixed; left: 12px; top: 64%; transform: translateY(-50%); z-index: 11; display: flex; flex-direction: column; gap: 8px; }
 #powers.hidden { display: none; }
+#pause-ai-row.hidden { display: none; }
 .power-btn {
-  width: 54px; height: 54px; border-radius: var(--radius-sm); cursor: pointer;
+  width: 44px; height: 44px; border-radius: var(--radius-sm); cursor: pointer;
   background: linear-gradient(160deg, rgba(155,89,182,0.35), rgba(155,89,182,0.1));
   border: 2px solid var(--neon-purple); color: var(--text-primary);
-  font-family: var(--font-data); font-weight: 800; font-size: 16px;
+  font-family: var(--font-data); font-weight: 800; font-size: 14px;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   box-shadow: var(--glow-purple);
 }
@@ -272,15 +273,18 @@ body::after {
 
 /* زر التعليمات (الجهة المقابلة للغة) */
 .corner-btn { position: absolute; top: 14px; z-index: 5; width: 38px; height: 34px; border-radius: var(--radius-sm);
-  background: rgba(0,212,255,0.08); border: 1px solid var(--border-neon); color: var(--text-accent); font-size: 16px; cursor: pointer; }
+  background: rgba(0,212,255,0.08); border: 1px solid var(--border-neon); color: var(--text-accent); font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; }
 .corner-btn:hover { background: rgba(0,212,255,0.18); box-shadow: var(--glow-blue); }
 .corner-start { inset-inline-start: 14px; }
+.corner-under-lang { inset-inline-end: 14px; top: 56px; } /* زر ؟ أسفل زر اللغة */
+.corner-quit { position: absolute; top: 14px; z-index: 5; padding: 7px 11px; font-size: 12px; border-radius: var(--radius-sm);
+  border: 1px solid var(--neon-red); color: var(--neon-red); background: rgba(255,48,48,0.07); cursor: pointer; white-space: nowrap;
+  display: flex; align-items: center; justify-content: center; gap: 4px; text-align: center; }
+.corner-quit:hover { background: rgba(255,48,48,0.16); box-shadow: var(--glow-red); }
 
 /* شارة التنزيل داخل الشعار */
-.logo-ring { position: relative; cursor: pointer; }
-.dl-badge { position: absolute; bottom: 0; inset-inline-end: 0; width: 24px; height: 24px; border-radius: 50%;
-  background: var(--neon-green); color: #053; font-weight: 900; font-size: 13px;
-  display: flex; align-items: center; justify-content: center; box-shadow: var(--glow-green); animation: float-y 2.4s ease-in-out infinite; }
+.logo-ring { position: relative; }
 
 /* لوحة التعليمات */
 .help-panel { max-width: 560px; max-height: 88vh; display: flex; flex-direction: column; text-align: start; }
@@ -353,6 +357,14 @@ body::after {
 
 /* درب‑داون الأشكال (جانبي) */
 #shape-dd { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 14px; }
+.dl-game-btn { width: 100%; margin: 2px 0 12px; font-size: 14px; }
+/* ويدجت تحميل اللعبة */
+.dl-modal { max-width: 380px; }
+.dl-choice { display: block; width: 100%; text-align: start; margin-top: 10px; padding: 12px 14px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border-neon); background: rgba(0,212,255,0.05); cursor: pointer; color: var(--text-primary); }
+.dl-choice:hover { background: rgba(0,212,255,0.14); box-shadow: var(--glow-blue); }
+.dl-choice-head { font-size: 16px; font-weight: 800; margin-bottom: 4px; }
+.dl-choice p { font-size: 12.5px; color: var(--text-secondary); line-height: 1.4; margin: 0; }
 .shape-label { font-family: var(--font-data); color: var(--text-secondary); font-size: 13px; }
 .shape-btn { width: 42px; height: 42px; border-radius: var(--radius-sm); border: 2px solid var(--border-neon); background: rgba(0,212,255,0.05); font-size: 20px; cursor: pointer; line-height: 1; flex-shrink: 0; }
 .shape-btn.active { border-color: var(--neon-blue); background: rgba(0,212,255,0.16); box-shadow: var(--glow-blue); }
@@ -436,10 +448,6 @@ body::after {
 .lock-btn.open { border-color: var(--neon-green); box-shadow: var(--glow-green); }
 .lock-btn.locked { border-color: var(--neon-gold); background: rgba(243,156,18,0.12); box-shadow: var(--glow-gold); }
 .play-row { display: flex; gap: 8px; align-items: stretch; }
-.dl-row { display: flex; flex-direction: column; gap: 7px; width: 100%; margin-top: 2px; }
-.dl-btn { width: 100%; font-size: 12.5px; line-height: 1.35; padding: 9px 12px; text-align: center; white-space: normal; }
-#dl-android { border-color: var(--neon-green); }
-#dl-iphone { border-color: var(--text-secondary); }
 .play-row .main-btn { flex: 1; }
 
 /* ===== الأزرار الرئيسية ===== */
@@ -476,8 +484,6 @@ body::after {
 .pause-actions { display: flex; flex-direction: column; gap: 14px; margin-top: 22px; }
 .pause-actions .ghost-btn { margin-bottom: 0; }
 .over-menu { margin-top: 10px; margin-bottom: 0; }
-.quit-btn { margin-top: 14px; margin-bottom: 0; border-color: var(--neon-red); color: var(--neon-red); background: rgba(255,48,48,0.07); }
-.quit-btn:hover { background: rgba(255,48,48,0.16); box-shadow: var(--glow-red); }
 
 /* إخفاء قسم الانضمام عند القفل */
 #section-join.hidden { display: none; }
@@ -534,7 +540,8 @@ body.touch.in-game #boost-btn { display: flex; }
   #chat-bar { bottom: auto; top: calc(64px + env(safe-area-inset-top)); left: 50%; gap: 6px; padding: 5px 8px; }
   #chat-bar button { width: 34px; height: 34px; font-size: 17px; }
   #charges { right: calc(8px + env(safe-area-inset-right)); gap: 6px; }
-  .charge-btn, .power-btn { width: 46px; height: 46px; font-size: 12px; }
+  .charge-btn { width: 46px; height: 46px; font-size: 12px; }
+  .power-btn { width: 38px; height: 38px; font-size: 12px; }
   .panel { padding: 22px 18px 18px; border-radius: var(--radius-md); }
   .panel h1 { font-size: 24px; }
   .panel > p { font-size: 12px; }
@@ -572,6 +579,14 @@ body.touch.in-game #boost-btn { display: flex; }
   /* الشحنات صفّاً أسفل اليسار، والقوى أعلى اليسار — بعيداً عن دردشة اليمين */
   #charges { left: calc(8px + env(safe-area-inset-left)); right: auto; top: auto; bottom: calc(14px + env(safe-area-inset-bottom)); transform: none; flex-direction: row; }
   #powers { left: calc(8px + env(safe-area-inset-left)); top: 40%; transform: translateY(-50%); }
+}
+
+/* الهاتف أفقياً: القوى صفّاً صغيراً أعلى الوسط بين المتصدّرين وإحصائياتي */
+@media (orientation: landscape) and (max-height: 500px) {
+  #powers { left: 50%; right: auto; top: calc(6px + env(safe-area-inset-top)); transform: translateX(-50%);
+    flex-direction: row; gap: 5px; }
+  .power-btn { width: 34px; height: 34px; font-size: 11px; }
+  .power-btn .kbd { font-size: 8px; padding: 0 3px; }
 }
 
 /* احترام تقليل الحركة */

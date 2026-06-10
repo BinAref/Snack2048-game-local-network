@@ -911,7 +911,10 @@
   let highScore = 0;
   try { highScore = parseInt(localStorage.getItem("snake2048_high") || "0") || 0; } catch (e) {}
   const medal = { level: 0, leaderId: null, reign: 0, leaderName: "" };
-  let giftCharges = 0; // شحنات الجائزة المُرحَّلة للفائز في اللعبة التالية
+  // جائزة كأس النهاية: قوة ×2 تبقى مع الفائز عبر كل الألعاب (محفوظة) حتى يستعملها
+  let prizeCharges = 0;
+  try { prizeCharges = Math.max(0, parseInt(localStorage.getItem("snake2048_prize")) || 0); } catch (e) {}
+  function savePrize() { try { localStorage.setItem("snake2048_prize", String(prizeCharges)); } catch (e) {} }
 
   // =====================================================================
   // حالة الشبكة
@@ -930,8 +933,27 @@
 
   function startGame() { beginPlay("solo"); }
   function restart() {
-    const stillConnected = online && ((isHost && peer) || (!isHost && hostConn && hostConn.open));
-    beginPlay(stillConnected ? (isHost ? "host" : "client") : "solo");
+    const stillHost = online && isHost && peer;
+    const stillClient = online && !isHost && hostConn && hostConn.open;
+    // خسارة في غرفة مستمرة: إحياء في نفس العالم دون إعادة بنائه (العالم ظلّ حياً للبقية)
+    if ((stillHost || stillClient) && state === "over") { respawnInRoom(); return; }
+    // فوز (جولة جديدة) أو غير متصل: لعبة كاملة جديدة
+    beginPlay(stillHost ? "host" : (stillClient ? "client" : "solo"));
+  }
+  // إحياء اللاعب في نفس الغرفة الجارية: يلمس ثعبانه فقط، لا العالم ولا اللاعبين الآخرين
+  function respawnInRoom() {
+    resetSnake();
+    const a = rand(0, Math.PI * 2), d = rand(0, CONFIG.WORLD * 0.5);
+    snake.x = Math.cos(a) * d; snake.y = Math.sin(a) * d; snake.path = [{ x: snake.x, y: snake.y }];
+    snake.charges = prizeCharges; updateCharges();
+    particles = []; floatEmojis = []; debris = []; rings = []; flash = 0;
+    document.getElementById("over-screen").classList.add("hidden");
+    document.getElementById("win-screen").classList.add("hidden");
+    document.getElementById("chat-bar").classList.remove("hidden");
+    document.body.classList.add("in-game");
+    state = "playing"; lastT = performance.now();
+    if (online && !isHost && hostConn && hostConn.open) { try { netSend({ t: "hello", name: playerName }); } catch (_) {} }
+    syncPowers();
   }
   function beginPlay(mode) {
     const nm = (document.getElementById("name-input").value || "").trim();
@@ -950,7 +972,7 @@
     if (authority()) initItems();
     else { foods = []; powerups = []; obstacles = []; dangers = []; dangerProjectiles = []; } // العميل ينتظر عالم المضيف
     updateCamera(snake.x, snake.y);
-    snake.charges = giftCharges; giftCharges = 0;
+    snake.charges = prizeCharges; // الجائزة محفوظة وتبقى حتى تُستعمل (لا تُفقد عند الخسارة أو الخروج)
     updateCharges();
     document.getElementById("level").textContent = gameLevel;
     document.getElementById("chat-bar").classList.remove("hidden");
@@ -1043,7 +1065,7 @@
   function winGame(winner, winnerId) {
     if (state !== "playing") return;
     state = "won";
-    giftCharges = (!online || winnerId === myId) ? 3 : 0; // الهدية للفائز فقط
+    if (!online || winnerId === myId) { prizeCharges = 3; savePrize(); } // الجائزة للفائز فقط، وتبقى محفوظة
     if (headValue() > highScore) { highScore = headValue(); try { localStorage.setItem("snake2048_high", String(highScore)); } catch (e) {} }
     document.getElementById("win-name").textContent = winner;
     document.getElementById("win-screen").classList.remove("hidden");
@@ -1053,7 +1075,8 @@
   }
   function useCharge() {
     if (snake.charges <= 0 || state !== "playing") return;
-    snake.charges--; snake.values = snake.values.map((v) => v * 2);
+    snake.charges--; prizeCharges = snake.charges; savePrize(); // تُخصم من الجائزة المحفوظة عند الاستعمال فقط
+    snake.values = snake.values.map((v) => v * 2);
     spawnBurst(snake.x, snake.y, "#37d67a", 18); updateCharges();
   }
   function updateCharges() {
@@ -1064,7 +1087,7 @@
     for (let i = 0; i < snake.charges; i++) {
       const b = document.createElement("button");
       b.className = "charge-btn"; b.innerHTML = "×2<span class='kbd'>E</span>";
-      b.onclick = useCharge; el.appendChild(b);
+      b.addEventListener("pointerdown", (e) => { e.preventDefault(); useCharge(); }); el.appendChild(b);
     }
   }
 
@@ -1084,7 +1107,7 @@
     for (const a of ABILITIES) {
       const b = document.createElement("button"); b.className = "power-btn";
       b.innerHTML = a.icon + "<span class='kbd'>" + a.key + "</span>";
-      b.onclick = () => usePower(a.id); el.appendChild(b);
+      b.addEventListener("pointerdown", (e) => { e.preventDefault(); usePower(a.id); }); el.appendChild(b);
     }
   }
   function syncPowers() { document.getElementById("powers").classList.toggle("hidden", !(isBinAref() && state === "playing")); }
@@ -1115,7 +1138,7 @@
 
     // في العمودي: دفع العصا بقوة = تسارع (بلا زرّ)
     const portrait = H > W;
-    const joyBoost = portrait && input.joyActive && Math.hypot(input.joyX, input.joyY) > JOY_R * 0.85;
+    const joyBoost = portrait && input.joyActive && Math.hypot(input.joyX, input.joyY) > JOY_R * 1.4; // يلزم سحب أبعد للخارج
     const wantBoost = input.holding || input.boostKey || joyBoost;
     if (snake.exhausted) {
       // نفدت الطاقة: انتظر جزءاً من الثانية ثم امتلئ، ولا اندفاع حتى التعافي
@@ -1317,7 +1340,15 @@
     return { id, name: pickBotName(), color: colorForId(id), x: p.x, y: p.y, angle: rand(0, Math.PI * 2), values, path: [{ x: p.x, y: p.y }], diff, react: lerp(0.6, 0.1, diff), aiT: rand(0, 0.3), boost: false, stamina: 1, speedTimer: 0, radarTimer: 0, magnetTimer: 0, dangerTimer: 0, headDangerTimer: 0, desiredAngle: rand(0, Math.PI * 2), _pbiteCD: 0, _obiteCD: 0, alive: true, emojiEm: null, emojiLife: 0 };
   }
   function addBot(opts) { if (bots.size >= 30) return; const b = makeBot(opts); bots.set(b.id, b); }
-  function killBot(bot) { if (!bot.alive) return; bot.alive = false; for (const s of bodyOf(bot)) { spawnBurst(s.x, s.y, colorForValue(s.value), 8); dropLoose(s.x + rand(-1, 1), s.y + rand(-1, 1), s.value); } bots.delete(bot.id); }
+  function killBot(bot, eatenHead) {
+    if (!bot.alive) return; bot.alive = false;
+    const segs = bodyOf(bot);
+    for (let i = 0; i < segs.length; i++) {
+      if (eatenHead && i === 0) continue; // الرأس أُكل بالفعل من المهاجم — لا يُسقط كطعام
+      const s = segs[i]; spawnBurst(s.x, s.y, colorForValue(s.value), 8); dropLoose(s.x + rand(-1, 1), s.y + rand(-1, 1), s.value);
+    }
+    bots.delete(bot.id);
+  }
   function botEat(bot, val) {
     bot.values.push(val); bot.values.sort((a, b) => b - a);
     let m = true; while (m) { m = false; for (let i = 0; i < bot.values.length - 1; i++) if (bot.values[i] === bot.values[i + 1]) { bot.values[i] *= 2; bot.values.splice(i + 1, 1); bot.values.sort((a, b) => b - a); m = true; break; } }
@@ -1334,7 +1365,7 @@
     if (!bot.alive) return;
     index = Math.floor(index);
     if (index >= bot.values.length) return; // فهرس قديم
-    if (index <= 0) { killBot(bot); return; }
+    if (index <= 0) { killBot(bot, true); return; } // أُكل الرأس → لا يُسقط كطعام
     const body = bodyOf(bot), dropped = bot.values.slice(index + 1);
     for (let j = 0; j < dropped.length; j++) { const pos = body[index + 1 + j] || { x: bot.x, y: bot.y }; dropLoose(pos.x, pos.y, dropped[j]); }
     bot.values.length = index;
@@ -1449,18 +1480,18 @@
     try { localStorage.setItem("snake2048_ai", aiEnabled ? "1" : "0"); } catch (e) {}
     if (!aiEnabled) bots.clear();
   };
-  // تحكّم أثناء اللعب (المدير): إزالة/إعادة الذكاء الاصطناعي حتى بعد بدء اللعبة
+  // تحكّم أثناء اللعب (المدير): سويتش لإزالة/إعادة الذكاء الاصطناعي حتى بعد بدء اللعبة
   window.togglePauseAI = function () {
-    aiEnabled = !aiEnabled;
+    const cb = document.getElementById("pause-ai-toggle");
+    aiEnabled = cb ? cb.checked : !aiEnabled;
     try { localStorage.setItem("snake2048_ai", aiEnabled ? "1" : "0"); } catch (e) {}
     if (!aiEnabled) bots.clear(); // إزالة فورية لكل البوتات
-    const cb = document.getElementById("ai-toggle"); if (cb) cb.checked = aiEnabled;
-    updatePauseAIBtn();
+    const menuCb = document.getElementById("ai-toggle"); if (menuCb) menuCb.checked = aiEnabled;
   };
   function updatePauseAIBtn() {
-    const b = document.getElementById("pause-ai-btn"); if (!b) return;
-    b.classList.toggle("hidden", online && !isHost); // المضيف/الفردي فقط يملك البوتات
-    b.textContent = (aiEnabled ? "🚫 " : "➕ ") + t("aiEnemies");
+    const row = document.getElementById("pause-ai-row"); if (!row) return;
+    row.classList.toggle("hidden", online && !isHost); // المضيف/الفردي فقط يملك البوتات
+    const cb = document.getElementById("pause-ai-toggle"); if (cb) cb.checked = aiEnabled;
   }
 
   // =====================================================================
@@ -1725,7 +1756,8 @@
   // دردشة الرموز (نقر أو أرقام 1..5)
   const chatButtons = [...document.querySelectorAll("#chat-bar button")];
   function sendEmoji(em) { if (!em) return; showEmoji(em); if (online) netSend({ t: "emoji", em }); }
-  chatButtons.forEach((b) => b.addEventListener("click", () => sendEmoji(b.dataset.emoji)));
+  // pointerdown (لا click): يعمل فوراً حتى أثناء تحريك العصا بإصبع آخر (لمس متعدّد)
+  chatButtons.forEach((b) => b.addEventListener("pointerdown", (e) => { e.preventDefault(); sendEmoji(b.dataset.emoji); }));
   function emojiByIndex(i) { const b = chatButtons[i]; if (b) sendEmoji(b.dataset.emoji); }
 
   // ===== الواجهة: الطيّ + اللغات =====
@@ -2078,7 +2110,7 @@
   function myStateMsg() { return { t: "state", name: playerName, x: +snake.x.toFixed(2), y: +snake.y.toFixed(2), angle: +snake.angle.toFixed(3), head: headValue(), boosting: snake.boosting, score: score(), body: bodyMsg() }; }
   function snakesMsg() {
     const list = [];
-    if (state === "playing") list.push(selfEntry()); // المضيف الميت لا يُرسَل
+    if (state === "playing" || state === "paused") list.push(selfEntry()); // الموقوف مؤقتاً يبقى ظاهراً ويمكن أكله؛ الميت فقط يُحذف
     for (const r of remotes.values()) list.push({ id: r.id, name: r.name, x: r.x, y: r.y, angle: r.angle, head: r.head, boosting: r.boosting, score: r.score, body: r.body });
     for (const b of bots.values()) list.push({ id: b.id, name: b.name, x: b.x, y: b.y, angle: b.angle, head: b.values[0], boosting: b.boost, score: botScore(b), body: bodyOf(b).map((s) => ({ x: +s.x.toFixed(2), y: +s.y.toFixed(2), v: s.value })) });
     return { t: "snakes", list };
@@ -2170,13 +2202,17 @@
   // تطبيق أندرويد (APK): يتيح اللعب المحلي بلا إنترنت. يُضبط الرابط بعد بناء التطبيق ورفعه على GitHub Releases.
   const APK_URL = "";
   window.downloadAndroid = function () {
+    closeDownload();
     if (APK_URL) window.open(APK_URL, "_blank");
     else { notify(t("apkSoon")); installApp(); } // مؤقتاً: نسخة الأوفلاين قريباً + إتاحة تثبيت PWA الآن
   };
-  window.downloadIphone = function () { installApp(); }; // آيفون = PWA
+  window.downloadIphone = function () { closeDownload(); installApp(); }; // آيفون = PWA
 
   // التعليمات
   window.openHelp = function () { document.getElementById("help-screen").classList.remove("hidden"); };
+  // ويدجت تحميل اللعبة: يعرض خياري أندرويد/آيفون مع الشرح
+  window.openDownload = function () { document.getElementById("download-modal").classList.remove("hidden"); };
+  window.closeDownload = function () { document.getElementById("download-modal").classList.add("hidden"); };
   window.closeHelp = function () { document.getElementById("help-screen").classList.add("hidden"); };
   // الرجوع للواجهة الرئيسية من شاشتي الفوز/الخسارة
   window.toMenu = function () {

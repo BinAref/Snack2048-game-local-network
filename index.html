@@ -64,7 +64,8 @@
   <!-- ===== شاشة البداية ===== -->
   <div id="start-screen" class="overlay">
     <div class="panel menu-panel">
-      <button id="help-btn" class="corner-btn corner-start" onclick="openHelp()" data-i18n-title="help">❓</button>
+      <button id="quit-btn" class="corner-quit corner-start" onclick="quitGame()">✕ <span data-i18n="closeGame">إغلاق اللعبة</span></button>
+      <button id="help-btn" class="corner-btn corner-under-lang" onclick="openHelp()" data-i18n-title="help">❓</button>
       <div id="lang-dd" class="lang-dd corner">
         <button id="lang-btn" type="button" onclick="toggleLangMenu()">🌐 <span id="lang-current">EN</span></button>
         <div id="lang-menu" class="lang-menu hidden">
@@ -74,23 +75,19 @@
       </div>
 
       <div class="logo-block">
-        <div class="logo-ring" onclick="installApp()" data-i18n-title="hInstall" title="Install">
+        <div class="logo-ring">
           <svg class="snake-logo" viewBox="0 0 64 64" width="58" height="58" aria-hidden="true">
             <polygon points="32,7 57,21 32,35 7,21" fill="#103a5c" stroke="#00D4FF" stroke-width="1.6"/>
             <polygon points="7,21 32,35 32,59 7,45" fill="#0a2236" stroke="#00D4FF" stroke-width="1.1"/>
             <polygon points="57,21 32,35 32,59 57,45" fill="#0d2c47" stroke="#00D4FF" stroke-width="1.1"/>
             <polygon points="32,7 44,14 32,21 20,14" fill="#1b5f8c" opacity="0.7"/>
           </svg>
-          <span class="dl-badge">⬇</span>
         </div>
         <h1 class="game-title"><span class="t-snake">SNAKE</span><span class="t-2048">2048</span></h1>
       </div>
 
       <input id="name-input" type="text" maxlength="14" autocomplete="off"/>
-      <div class="dl-row">
-        <button id="dl-android" class="ghost-btn dl-btn" onclick="downloadAndroid()" data-i18n="dlAndroid">🤖 Android</button>
-        <button id="dl-iphone" class="ghost-btn dl-btn" onclick="downloadIphone()" data-i18n="dlIphone">🍎 iPhone</button>
-      </div>
+      <button id="dl-game-btn" class="ghost-btn dl-game-btn" onclick="openDownload()">⬇ <span data-i18n="dlGame">تحميل اللعبة</span></button>
 
       <div id="shape-dd">
         <span class="shape-label" data-i18n="shape">الشكل</span>
@@ -156,7 +153,22 @@
         </div>
       </div>
 
-      <button id="quit-btn" class="ghost-btn quit-btn" onclick="quitGame()">✕ <span data-i18n="close">إغلاق</span></button>
+    </div>
+  </div>
+
+  <!-- ===== ويدجت تحميل اللعبة ===== -->
+  <div id="download-modal" class="overlay hidden">
+    <div class="panel dl-modal">
+      <button class="close-x" onclick="closeDownload()" aria-label="close">✕</button>
+      <h2 data-i18n="dlGame">تحميل اللعبة</h2>
+      <button class="dl-choice" onclick="downloadAndroid()">
+        <div class="dl-choice-head">🤖 <b>Android</b></div>
+        <p data-i18n="hAndroid"></p>
+      </button>
+      <button class="dl-choice" onclick="downloadIphone()">
+        <div class="dl-choice-head">🍎 <b>iPhone</b></div>
+        <p data-i18n="hIphone"></p>
+      </button>
     </div>
   </div>
 
@@ -229,14 +241,26 @@
               <tr><td>×2</td><td data-i18n="pDouble"></td><td data-i18n="pDoubleTxt"></td></tr>
               <tr><td>÷2</td><td data-i18n="pHalf"></td><td data-i18n="pHalfTxt"></td></tr>
               <tr><td>📡</td><td data-i18n="pRadar"></td><td data-i18n="pRadarTxt"></td></tr>
+              <tr><td>🧲</td><td data-i18n="pMagnet"></td><td data-i18n="pMagnetTxt"></td></tr>
               <tr><td>⚠️</td><td data-i18n="pDanger"></td><td data-i18n="pDangerTxt"></td></tr>
             </tbody>
           </table>
         </section>
 
         <section>
+          <h3 data-i18n="hShapes">الأشكال</h3>
+          <p data-i18n="hShapesTxt"></p>
+        </section>
+
+        <section>
+          <h3>🏆 <span data-i18n="hTrophy">جائزة الكأس</span></h3>
+          <p data-i18n="hTrophyTxt"></p>
+        </section>
+
+        <section id="help-install">
           <h3 data-i18n="hInstall">تثبيت كتطبيق</h3>
-          <p data-i18n="hInstallTxt"></p>
+          <p class="idea-line" data-i18n="hAndroid"></p>
+          <p class="idea-line" data-i18n="hIphone"></p>
         </section>
       </div>
       <button class="main-btn" onclick="closeHelp()" data-i18n="close">إغلاق</button>
@@ -249,7 +273,10 @@
       <h1 data-i18n="paused">إيقاف مؤقت</h1>
       <div class="pause-actions">
         <button class="main-btn" onclick="resumeGame()" data-i18n="resume">استئناف</button>
-        <button id="pause-ai-btn" class="ghost-btn" onclick="togglePauseAI()">🚫 AI</button>
+        <div class="toggle-row ai-row" id="pause-ai-row">
+          <span class="toggle-label">🤖 <span data-i18n="aiEnemies">أعداء AI</span></span>
+          <label class="toggle-switch"><input type="checkbox" id="pause-ai-toggle" onchange="togglePauseAI()" /><span class="slider"></span></label>
+        </div>
         <button class="ghost-btn" onclick="exitToMenu()" data-i18n="exit">الخروج للقائمة</button>
       </div>
     </div>
