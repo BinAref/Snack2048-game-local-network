@@ -16,8 +16,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Snake 2048" />
-  <link rel="icon" href="icon.svg" />
-  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="icon" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 </head>
 <body>
   <canvas id="bg-stars"></canvas>
@@ -149,6 +149,16 @@
             <span class="room-code-label" data-i18n="roomShort">رمز الغرفة</span>
             <span id="room-code-display"></span>
             <button class="copy-txt-btn" onclick="copyCode()" data-i18n="copy">نسخ</button>
+          </div>
+        </div>
+
+        <!-- لعب محلي بلا إنترنت (يظهر في تطبيق أندرويد فقط) -->
+        <div id="local-lan" class="hidden">
+          <div class="divider"></div>
+          <p class="lan-title">📡 <span data-i18n="lanTitle">محلي (بلا إنترنت)</span></p>
+          <div class="play-row">
+            <button class="main-btn" onclick="localHost()" data-i18n="lanHost">استضافة</button>
+            <button class="ghost-btn" onclick="localJoin()" data-i18n="lanJoin">انضمام محلي</button>
           </div>
         </div>
       </div>

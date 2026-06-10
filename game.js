@@ -1317,7 +1317,7 @@
   // =====================================================================
   const BOT_NAMES = ["Khaizen", "Neffex", "Aria", "Kenji", "Yuki", "Hassan", "Layla", "Diego", "Sofia", "Pierre", "Olga", "Viktor", "Mei", "Jin", "Ravi", "Priya", "Omar", "Nadia", "Lukas", "Emma", "Chen", "Akira", "Fatima", "Carlos", "Ingrid", "Tariq", "Sakura", "Minho", "Ivan", "Zara"];
   const bots = new Map();
-  let botSeq = 0, aiEnabled = true, botTarget = 24, botSpawnCD = 0, playerReign = 0, nextChallenge = 180;
+  let botSeq = 0, aiEnabled = true, botTarget = 24, botSpawnCD = 0, playerReign = 0, challengeWave = 0;
   try { aiEnabled = localStorage.getItem("snake2048_ai") !== "0"; } catch (e) {}
 
   function usedNames() { const s = new Set([playerName]); for (const b of bots.values()) s.add(b.name); for (const r of remotes.values()) s.add(r.name); return s; }
@@ -1457,12 +1457,15 @@
     const leader = computeLeader();
     if (leader.id === myId && state === "playing") {
       playerReign += dt;
-      if (playerReign >= nextChallenge) {
+      // 6 دقائق من الصدارة المتواصلة → يظهر منافس أقوى، وكل مرّة أقوى من سابقتها
+      if (playerReign >= 360) {
+        playerReign = 0; challengeWave++;
         const ph = headValue();
-        if (nextChallenge <= 180) { addBot({ top: ph, diff: 0.82 }); addBot({ top: Math.max(2, ph / 2), diff: 0.66 }); nextChallenge = 300; }
-        else { addBot({ top: ph * 2, diff: 0.92 }); nextChallenge += 150; }
+        const strength = Math.min(0.99, 0.86 + challengeWave * 0.03);
+        const topMul = 1.6 + challengeWave * 0.5;
+        addBot({ top: Math.max(ph * 2, Math.round(ph * topMul)), diff: strength });
       }
-    } else { playerReign = 0; nextChallenge = 180; }
+    } else { playerReign = 0; } // فقدان الصدارة يصفّر العدّاد (يبدأ 6 دقائق جديدة عند العودة)
   }
   function manageBots(dt) {
     if (!aiEnabled) { if (bots.size) bots.clear(); return; }
@@ -1474,7 +1477,7 @@
     for (const bot of [...bots.values()]) stepBot(bot, dt);
     for (const bot of [...bots.values()]) if (bot.alive) botOffense(bot, dt);
   }
-  function resetBots() { bots.clear(); playerReign = 0; nextChallenge = 180; botSpawnCD = 0; botTarget = 20 + Math.floor(Math.random() * 11); }
+  function resetBots() { bots.clear(); playerReign = 0; challengeWave = 0; botSpawnCD = 0; botTarget = 20 + Math.floor(Math.random() * 11); }
   window.toggleAI = function () {
     aiEnabled = document.getElementById("ai-toggle").checked;
     try { localStorage.setItem("snake2048_ai", aiEnabled ? "1" : "0"); } catch (e) {}
@@ -1611,7 +1614,7 @@
     for (const r of remotes.values()) drawRemoteLabel(r);
     for (const bt of bots.values()) drawRemoteLabel({ x: bt.x, y: bt.y, head: bt.values[0], name: bt.name, color: bt.color, emojiLife: bt.emojiLife, emojiEm: bt.emojiEm });
     drawArrow(); drawNameLabel(); drawEmojis();
-    if (snake.radarTimer > 0) drawRadar();
+    if (snake.radarTimer > 0) { drawRadar(); drawPowerupRadar(); }
     if (snake.magnetTimer > 0) drawEffectTimer("🧲", snake.magnetTimer, "#c79bff", snake.radarTimer > 0 ? 1 : 0);
     drawFlash();
     ctx.restore();
@@ -1675,6 +1678,27 @@
     }
     ctx.globalAlpha = 1; ctx.fillStyle = "#2ee6a6"; ctx.font = '800 14px "Segoe UI", Tahoma, sans-serif'; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText("📡 " + Math.ceil(snake.radarTimer) + "s", cx, cy - ring - 18);
+  }
+  // رادار المكافآت: يدلّ على القوى المنتشرة (إيجابية وسلبية مثل ÷2) — حلقة خارجية بالأيقونات
+  function drawPowerupRadar() {
+    const cx = W / 2, cy = H / 2, ring = Math.min(W, H) * 0.30;
+    const items = [];
+    for (const p of powerups) { if (p.x == null) continue; const rp = project(p.x, p.y); items.push({ ang: Math.atan2(rp.y - cy, rp.x - cx), d: Math.hypot(p.x - snake.x, p.y - snake.y), type: p.type }); }
+    if (!items.length) return;
+    items.sort((a, b) => a.d - b.d);
+    const angDiff = (a, b) => Math.abs(normAngle(a - b));
+    const shown = []; let n = 0;
+    for (let i = 0; i < items.length && n < 5; i++) {
+      const it = items[i];
+      if (shown.some((a) => angDiff(a, it.ang) < 0.35)) continue;
+      const pu = POWERUPS[it.type] || {}, col = pu.glow || "#b06bff";
+      const ex = cx + Math.cos(it.ang) * ring, ey = cy + Math.sin(it.ang) * ring;
+      ctx.save(); ctx.globalAlpha = 0.9; ctx.shadowColor = col; ctx.shadowBlur = 8;
+      ctx.font = '800 15px "Segoe UI", Tahoma, sans-serif'; ctx.fillStyle = col; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(pu.label || "◆", ex, ey);
+      ctx.restore();
+      shown.push(it.ang); n++;
+    }
   }
   // عدّاد تأثير (مثل الرادار) أعلى الرأس
   function drawEffectTimer(icon, t, color, slot) {
@@ -1882,6 +1906,7 @@
 
   // الزرّ الرئيسي
   window.doPlayMulti = function () {
+    if (navigator.onLine === false) { mStatus(t("netNeedInternet"), true); return; } // العالمي يحتاج إنترنت
     if (!peerLoaded()) { mStatus(t("netTimeout"), true); return; }
     setName();
     if (roomLocked) {
@@ -1958,6 +1983,7 @@
   window.doJoin = function () {
     const s = document.getElementById("join-status"); s.classList.remove("error");
     if (online && isHost) return; // أنت مضيف بالفعل — لا تنضمّ مرتين
+    if (navigator.onLine === false) { s.classList.add("error"); s.textContent = t("netNeedInternet"); return; } // العالمي يحتاج إنترنت
     if (!peerLoaded()) { s.classList.add("error"); s.textContent = "تعذّر تحميل PeerJS"; return; }
     const code = (document.getElementById("join-code-input").value || "").trim().toUpperCase();
     if (!code) { s.classList.add("error"); s.textContent = "الصق رمز الغرفة"; return; }
@@ -1991,6 +2017,7 @@
   // ====== نقل الاستضافة تلقائياً عند خروج المضيف ======
   function onHostLost() {
     if (!online || isHost || migrating) return;
+    if (localNet) { backToMenu(); return; } // المحلي: لا ترحيل، عُد للقائمة
     migrating = true; hostConn = null;
     const newHostId = electNewHost();
     if (!newHostId) { backToMenu(); migrating = false; return; } // لم يبقَ أحد → أُغلقت الغرفة
@@ -2037,10 +2064,51 @@
     });
   }
 
+  // ===== اللعب المحلي عبر Nearby Connections (تطبيق أندرويد فقط، بلا إنترنت) =====
+  // يعيد استخدام نفس بروتوكول الرسائل: نغلّف كل اتصال بكائن له send/open مثل PeerJS.
+  const isNativeApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const Nearby = (isNativeApp && window.Capacitor.Plugins) ? window.Capacitor.Plugins.Nearby : null;
+  let localNet = false, nearbyReady = false;
+  const nearbyWrap = (id) => ({ peer: id, open: true, send: (m) => { try { Nearby.send({ to: id, data: JSON.stringify(m) }); } catch (_) {} } });
+  function initNearby() {
+    if (!Nearby || nearbyReady) return; nearbyReady = true;
+    Nearby.addListener("data", (ev) => {
+      let m; try { m = JSON.parse(ev.data); } catch (_) { return; }
+      if (isHost) handleHostMsg(ev.id, m); else handleClientMsg(m);
+    });
+    Nearby.addListener("open", (ev) => {
+      if (isHost) {
+        const conn = nearbyWrap(ev.id); clientConns.set(ev.id, conn);
+        const r = remotes.get(ev.id) || { id: ev.id, color: colorForId(ev.id) }; remotes.set(ev.id, r);
+        try { conn.send({ t: "yourId", id: ev.id }); conn.send(worldMsg()); conn.send(itemsMsg()); } catch (_) {}
+        const txt = "👋 " + t("joined"); notify(txt); hostBroadcast({ t: "notify", text: txt }, ev.id);
+      } else {
+        hostConn = nearbyWrap(ev.id); online = true; isHost = false; migrating = false;
+        beginPlay("client"); netSend({ t: "hello", name: playerName });
+      }
+    });
+    Nearby.addListener("close", (ev) => {
+      if (isHost) { const r = remotes.get(ev.id); remotes.delete(ev.id); clientConns.delete(ev.id); if (r) { const msg = "👋 " + (r.name || "") + " " + t("left"); notify(msg); hostBroadcast({ t: "notify", text: msg }); } }
+      else if (hostConn && hostConn.peer === ev.id) onHostLost();
+    });
+  }
+  window.localHost = function () {
+    if (!Nearby) { mStatus(t("netTimeout"), true); return; }
+    setName(); initNearby(); localNet = true; currentRoom = "LAN"; myId = "host"; mStatus(t("connecting"));
+    Nearby.startHost({ name: playerName }).then(() => { isHost = true; online = true; migrating = false; mStatus("📡 " + t("hostNow")); beginPlay("host"); })
+      .catch((e) => { mStatus(String(e).indexOf("permission") >= 0 ? t("connecting") : ("" + (e && e.message || e)), true); });
+  };
+  window.localJoin = function () {
+    if (!Nearby) { mStatus(t("netTimeout"), true); return; }
+    setName(); initNearby(); localNet = true; currentRoom = "LAN"; myId = "c" + Math.floor(Math.random() * 1e6); mStatus(t("connecting"));
+    Nearby.startJoin({ name: playerName }).catch((e) => { if (String(e).indexOf("permission") < 0) mStatus("" + (e && e.message || e), true); });
+  };
+
   function backToMenu() {
     online = false; isHost = false; migrating = false; state = "menu"; remotes.clear(); bots.clear(); hostConn = null; clientConns.clear();
     hideRoomCodeHud(); document.body.classList.remove("in-game");
     hostLobby = false;
+    if (localNet && Nearby) { try { Nearby.stop(); } catch (_) {} } localNet = false;
     try { if (peer) peer.destroy(); } catch (_) {}
     document.getElementById("start-screen").classList.remove("hidden");
     document.getElementById("chat-bar").classList.add("hidden");
@@ -2138,6 +2206,7 @@
   // ---- استقبال (العميل) ----
   function handleClientMsg(msg) {
     switch (msg.t) {
+      case "yourId": myId = msg.id; break; // المضيف المحلي يعطي العميل مُعرّفه (Nearby)
       case "world": mapShape = msg.mapShape; mapTri = msg.mapTri; obstacles = msg.obstacles || []; dangers = msg.dangers || []; gameLevel = msg.level || 1; if (msg.shape) blockShape = msg.shape; document.getElementById("level").textContent = gameLevel; break;
       case "items": foods = (msg.foods || []).map((f) => ({ id: f.id, x: f.x, y: f.y, value: f.value, size: sizeForValue(f.value), vx: 0, vy: 0 })); powerups = (msg.powerups || []).map((p) => ({ id: p.id, x: p.x, y: p.y, type: p.type, size: CONFIG.BASE_SIZE * 2.0 })); dangerProjectiles = (msg.dprojs || []).map((p) => ({ x: p.x, y: p.y, r: p.r, vx: 0, vy: 0, turn: 0, age: 0 })); break;
       case "snakes": applySnakes(msg.list || []); break;
@@ -2200,7 +2269,7 @@
   };
   addEventListener("appinstalled", () => { deferredPrompt = null; });
   // تطبيق أندرويد (APK): يتيح اللعب المحلي بلا إنترنت. يُضبط الرابط بعد بناء التطبيق ورفعه على GitHub Releases.
-  const APK_URL = "";
+  const APK_URL = "https://github.com/BinAref/Snack2048-game-local-network/releases/download/v1/Snake2048.apk";
   window.downloadAndroid = function () {
     closeDownload();
     if (APK_URL) window.open(APK_URL, "_blank");
@@ -2238,6 +2307,7 @@
   updateShapeUI();
 
   buildPowers();
+  if (isNativeApp) { try { document.getElementById("local-lan").classList.remove("hidden"); } catch (e) {} } // لعب محلي في التطبيق فقط
   try { document.getElementById("ai-toggle").checked = aiEnabled; } catch (e) {}
   gameLevel = 1; resetSnake(); initItems(); updateCamera(0, 0);
   document.getElementById("highscore").textContent = fmtNum(highScore);

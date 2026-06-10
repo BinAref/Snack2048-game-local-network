@@ -1,0 +1,8 @@
+{
+  "appId": "com.binaref.snake2048",
+  "appName": "Snake 2048",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": true
+  }
+}

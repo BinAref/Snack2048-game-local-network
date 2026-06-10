@@ -1,0 +1,12 @@
+# Capacitor / Node
+node_modules/
+# Android build outputs
+android/.gradle/
+android/build/
+android/app/build/
+android/captures/
+android/.idea/
+android/local.properties
+*.apk
+*.aab
+.DS_Store

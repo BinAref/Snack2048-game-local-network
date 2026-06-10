@@ -171,6 +171,8 @@ body::after {
 #powers { position: fixed; left: 12px; top: 64%; transform: translateY(-50%); z-index: 11; display: flex; flex-direction: column; gap: 8px; }
 #powers.hidden { display: none; }
 #pause-ai-row.hidden { display: none; }
+#local-lan.hidden { display: none; }
+.lan-title { font-family: var(--font-data); color: var(--neon-purple); font-size: 13px; text-align: center; margin: 0 0 8px; }
 .power-btn {
   width: 44px; height: 44px; border-radius: var(--radius-sm); cursor: pointer;
   background: linear-gradient(160deg, rgba(155,89,182,0.35), rgba(155,89,182,0.1));
