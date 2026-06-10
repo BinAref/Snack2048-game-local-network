@@ -350,8 +350,8 @@
   <button id="boost-btn">⚡</button>
 
   <!-- دردشة الرموز -->
-  <div id="chat-bar" class="hidden">
-    <button id="emoji-toggle" class="emoji-toggle" onclick="toggleEmojiBar()" aria-label="emoji">😀<span class="emoji-caret">▾</span></button>
+  <div id="chat-bar" class="hidden collapsed">
+    <button id="emoji-quick" class="emoji-q" aria-label="emoji">👍</button>
     <div id="emoji-list">
       <button data-emoji="👍">👍<span class="kbd">1</span></button>
       <button data-emoji="😱">😱<span class="kbd">2</span></button>
@@ -359,6 +359,7 @@
       <button data-emoji="😂">😂<span class="kbd">4</span></button>
       <button data-emoji="💀">💀<span class="kbd">5</span></button>
     </div>
+    <button id="emoji-arrow" class="emoji-q arrow" onclick="toggleEmojiBar()" aria-label="more">▾</button>
   </div>
 
   <script defer src="particles.js"></script>

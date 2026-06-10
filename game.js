@@ -1663,27 +1663,30 @@
     }
     ctx.restore();
   }
-  // خريطة مصغّرة: بنفس شكل الأرضية (دائرة/مثلث/مربع)، تكبر تلقائياً كلما زاد رقمك.
+  // خريطة مصغّرة: بنفس إسقاط الأرضية (إيزومتري/ماس) وشكلها، وحجمها يكبر مع عدد اللاعبين/البوتات.
   function drawMinimap() {
-    const base = Math.min(W, H);
-    const S = clamp(base * 0.13 + log2(Math.max(2, headValue())) * base * 0.0065, base * 0.13, base * 0.26);
-    const pad = 12, x0 = pad, y0 = H - S - pad, R = CONFIG.WORLD;
-    const mx = (v) => x0 + (v + R) / (2 * R) * S, my = (v) => y0 + (v + R) / (2 * R) * S;
-    const dot = (hv) => clamp(1.6 + log2(Math.max(2, hv)) * 0.45, 1.8, 6);
+    const base = Math.min(W, H), R = CONFIG.WORLD;
+    const count = 1 + bots.size + remotes.size;                       // اللاعب + البوتات + البعيدون
+    const S = clamp(base * 0.045 + base * 0.016 * (count - 1), base * 0.045, base * 0.26); // صغيرة جداً منفرداً وتكبر مع كل كائن
+    const ms = S / (4 * R * CONFIG.ISO_X), pad = 12;
+    const cx = pad + S / 2, cy = H - pad - S * 0.25;                  // مركز الماس أسفل اليسار
+    const mmx = (x, y) => cx + (x - y) * CONFIG.ISO_X * ms;           // نفس إسقاط project
+    const mmy = (x, y) => cy + (x + y) * CONFIG.ISO_Y * ms;
+    const sc = clamp(S / (base * 0.16), 0.45, 1.2);
+    const dot = (hv) => clamp(1.4 + log2(Math.max(2, hv)) * 0.4, 1.4, 5) * sc;
     ctx.save();
-    // حدّ الخريطة حسب شكل الأرضية + قصّ النقاط داخله
     ctx.beginPath();
-    if (mapShape === "circle") ctx.arc(x0 + S / 2, y0 + S / 2, S / 2, 0, Math.PI * 2);
-    else if (mapShape === "triangle" && mapTri) { ctx.moveTo(mx(mapTri[0].x), my(mapTri[0].y)); ctx.lineTo(mx(mapTri[1].x), my(mapTri[1].y)); ctx.lineTo(mx(mapTri[2].x), my(mapTri[2].y)); ctx.closePath(); }
-    else ctx.rect(x0, y0, S, S);
-    ctx.globalAlpha = 0.82; ctx.fillStyle = "rgba(6,16,30,0.7)"; ctx.fill();
-    ctx.strokeStyle = "rgba(0,212,255,0.4)"; ctx.lineWidth = 1.5; ctx.stroke();
+    if (mapShape === "circle") ctx.ellipse(cx, cy, R * ms * CONFIG.ISO_X * Math.SQRT2, R * ms * CONFIG.ISO_Y * Math.SQRT2, 0, 0, Math.PI * 2);
+    else if (mapShape === "triangle" && mapTri) { ctx.moveTo(mmx(mapTri[0].x, mapTri[0].y), mmy(mapTri[0].x, mapTri[0].y)); ctx.lineTo(mmx(mapTri[1].x, mapTri[1].y), mmy(mapTri[1].x, mapTri[1].y)); ctx.lineTo(mmx(mapTri[2].x, mapTri[2].y), mmy(mapTri[2].x, mapTri[2].y)); ctx.closePath(); }
+    else { ctx.moveTo(mmx(-R, -R), mmy(-R, -R)); ctx.lineTo(mmx(R, -R), mmy(R, -R)); ctx.lineTo(mmx(R, R), mmy(R, R)); ctx.lineTo(mmx(-R, R), mmy(-R, R)); ctx.closePath(); }
+    ctx.globalAlpha = 0.82; ctx.fillStyle = "rgba(6,16,30,0.72)"; ctx.fill();
+    ctx.strokeStyle = "rgba(0,212,255,0.45)"; ctx.lineWidth = 1.3; ctx.stroke();
     ctx.clip();
     ctx.fillStyle = "#ff3b3b"; // الأعداء (الأقوى أكبر)
-    for (const r of remotes.values()) if (r.x != null) { ctx.beginPath(); ctx.arc(mx(r.x), my(r.y), dot(r.head || 2), 0, Math.PI * 2); ctx.fill(); }
-    for (const b of bots.values()) { ctx.beginPath(); ctx.arc(mx(b.x), my(b.y), dot(b.values[0]), 0, Math.PI * 2); ctx.fill(); }
-    if (snake.radarTimer > 0) { ctx.fillStyle = "#ffd23f"; for (const p of powerups) { ctx.beginPath(); ctx.arc(mx(p.x), my(p.y), 2.6, 0, Math.PI * 2); ctx.fill(); } } // الرادار: الكنوز
-    ctx.fillStyle = "#19d3ff"; ctx.beginPath(); ctx.arc(mx(snake.x), my(snake.y), 3, 0, Math.PI * 2); ctx.fill();
+    for (const r of remotes.values()) if (r.x != null) { ctx.beginPath(); ctx.arc(mmx(r.x, r.y), mmy(r.x, r.y), dot(r.head || 2), 0, Math.PI * 2); ctx.fill(); }
+    for (const b of bots.values()) { ctx.beginPath(); ctx.arc(mmx(b.x, b.y), mmy(b.x, b.y), dot(b.values[0]), 0, Math.PI * 2); ctx.fill(); }
+    if (snake.radarTimer > 0) { ctx.fillStyle = "#ffd23f"; for (const p of powerups) { ctx.beginPath(); ctx.arc(mmx(p.x, p.y), mmy(p.x, p.y), 2 * sc, 0, Math.PI * 2); ctx.fill(); } } // الرادار: الكنوز
+    ctx.fillStyle = "#19d3ff"; ctx.beginPath(); ctx.arc(mmx(snake.x, snake.y), mmy(snake.x, snake.y), 2.4 * sc, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
   function drawRemoteLabel(r) {
@@ -1846,15 +1849,33 @@
 
   // دردشة الرموز (نقر أو أرقام 1..5)
   const chatButtons = [...document.querySelectorAll("#emoji-list button")];
-  function sendEmoji(em) { if (!em) return; showEmoji(em); if (online) netSend({ t: "emoji", em }); }
+  let emojiCounts = {}; try { emojiCounts = JSON.parse(localStorage.getItem("snake2048_emoji")) || {}; } catch (e) {}
+  function mostUsedEmoji() {
+    let best = chatButtons[0] ? chatButtons[0].dataset.emoji : "👍", bc = -1;
+    for (const b of chatButtons) { const c = emojiCounts[b.dataset.emoji] || 0; if (c > bc) { bc = c; best = b.dataset.emoji; } }
+    return best;
+  }
+  function updateQuickEmoji() { const q = document.getElementById("emoji-quick"); if (q) q.textContent = mostUsedEmoji(); }
+  function sendEmoji(em) {
+    if (!em) return;
+    emojiCounts[em] = (emojiCounts[em] || 0) + 1; try { localStorage.setItem("snake2048_emoji", JSON.stringify(emojiCounts)); } catch (e) {}
+    updateQuickEmoji();
+    showEmoji(em); if (online) netSend({ t: "emoji", em });
+  }
   // pointerdown (لا click): يعمل فوراً حتى أثناء تحريك العصا بإصبع آخر (لمس متعدّد)
   chatButtons.forEach((b) => b.addEventListener("pointerdown", (e) => { e.preventDefault(); sendEmoji(b.dataset.emoji); }));
+  { const q = document.getElementById("emoji-quick"); if (q) q.addEventListener("pointerdown", (e) => { e.preventDefault(); sendEmoji(mostUsedEmoji()); }); }
+  updateQuickEmoji();
   function emojiByIndex(i) { const b = chatButtons[i]; if (b) sendEmoji(b.dataset.emoji); }
   // الإحصائيات/المتصدّرون: pointerdown ليعملا أثناء تحريك اللاعب
   { const sb = document.getElementById("score-box"); if (sb) sb.addEventListener("pointerdown", (e) => { e.preventDefault(); toggleStats(); }); }
   { const lb = document.getElementById("leaderboard"); if (lb) lb.addEventListener("pointerdown", (e) => { e.preventDefault(); toggleLB(); }); }
-  // طيّ/إظهار شريط الإيموجي (للهاتف)
-  window.toggleEmojiBar = function () { const c = document.getElementById("chat-bar"); if (c) c.classList.toggle("collapsed"); };
+  // طيّ/إظهار شريط الإيموجي (إيموجي واحد + سهم عند الطيّ)
+  window.toggleEmojiBar = function () {
+    const c = document.getElementById("chat-bar"); if (!c) return;
+    c.classList.toggle("collapsed");
+    const a = document.getElementById("emoji-arrow"); if (a) a.textContent = c.classList.contains("collapsed") ? "▾" : "▴";
+  };
 
   // ===== الواجهة: الطيّ + اللغات =====
   let lbOpen = true, statsOpen = true, curLang = "en";

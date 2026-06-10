@@ -221,10 +221,9 @@ body::after {
 }
 #chat-bar.hidden { display: none; }
 #emoji-list { display: flex; gap: 8px; }
-.emoji-toggle { display: none; } /* سطح المكتب: بلا طيّ */
-.emoji-caret { font-size: 9px; margin-inline-start: 1px; }
-body.touch .emoji-toggle { display: inline-flex; align-items: center; justify-content: center; }
-#chat-bar.collapsed #emoji-list { display: none; }
+.emoji-q.arrow { font-size: 15px; color: var(--text-accent); }
+#chat-bar.collapsed #emoji-list { display: none; }                 /* مطويّ: إيموجي واحد + سهم */
+#chat-bar:not(.collapsed) #emoji-quick { display: none; }          /* مفتوح: القائمة الكاملة */
 #chat-bar button { position: relative; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border-neon); cursor: pointer; background: rgba(0,212,255,0.06); font-size: 20px; transition: transform .08s, background .15s, box-shadow .15s; }
 #chat-bar button:hover { background: rgba(0,212,255,0.2); box-shadow: var(--glow-blue); }
 #chat-bar button:active { transform: scale(0.9); }
