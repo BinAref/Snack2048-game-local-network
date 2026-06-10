@@ -1,6 +1,6 @@
 /* Service Worker — يجعل اللعبة قابلة للتثبيت وتعمل أوفلاين بعد أول فتح */
-const CACHE = "snake2048-v20";
-const ASSETS = ["./", "./index.html", "./style.css", "./game.js", "./lang.js", "./particles.js", "./manifest.json", "./icon.svg", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
+const CACHE = "snake2048-v21";
+const ASSETS = ["./", "./index.html", "./style.css", "./game.js", "./lang.js", "./particles.js", "./sound.js", "./manifest.json", "./icon.svg", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));

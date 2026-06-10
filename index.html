@@ -111,6 +111,14 @@
         </label>
       </div>
 
+      <div class="toggle-row">
+        <span class="toggle-label">🔊 <span data-i18n="sound">الصوت</span></span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="snd-toggle" onchange="toggleSound()" checked/>
+          <span class="slider"></span>
+        </label>
+      </div>
+
       <!-- وضع منفرد / جماعي (أيقونات) -->
       <div id="mode-switch">
         <button id="btn-solo"  class="switch-btn active" onclick="switchMode('solo')"  data-i18n-title="solo">👤</button>
@@ -287,6 +295,10 @@
           <span class="toggle-label">🤖 <span data-i18n="aiEnemies">أعداء AI</span></span>
           <label class="toggle-switch"><input type="checkbox" id="pause-ai-toggle" onchange="togglePauseAI()" /><span class="slider"></span></label>
         </div>
+        <div class="toggle-row">
+          <span class="toggle-label">🔊 <span data-i18n="sound">الصوت</span></span>
+          <label class="toggle-switch"><input type="checkbox" id="pause-snd-toggle" onchange="toggleSound()" /><span class="slider"></span></label>
+        </div>
         <button class="ghost-btn" onclick="exitToMenu()" data-i18n="exit">الخروج للقائمة</button>
       </div>
     </div>
@@ -315,6 +327,7 @@
   </div>
 
   <script defer src="particles.js"></script>
+  <script defer src="sound.js"></script>
   <script defer src="lang.js"></script>
   <!-- PeerJS للأونلاين فقط؛ defer حتى لا يعطّل اللعب الفردي بدون إنترنت -->
   <script defer src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>

@@ -78,6 +78,8 @@
   const lerp = (a, b, t) => a + (b - a) * t;
   const log2 = (v) => Math.log(v) / Math.LN2;
   const rand = (a, b) => a + Math.random() * (b - a);
+  const sfx = (n) => { try { if (window.Sound) Sound.play(n); } catch (e) {} }; // مؤثّر صوتي آمن
+  let wasBoosting = false; // لتشغيل صوت الاندفاع عند بدايته فقط
   function normAngle(d) { // تطبيع زاوية إلى [-π,π] بأمان (يتحمّل Infinity/NaN ولا يدور أبداً)
     if (!isFinite(d)) return 0;
     d = d % (2 * Math.PI);
@@ -613,6 +615,7 @@
   // الأكل + الدمج + القوى + القطع
   // =====================================================================
   function eatValue(v) {
+    sfx("eat");
     snake.values.push(v); snake.values.sort((a, b) => b - a);
     let merged = true;
     while (merged) {
@@ -628,6 +631,7 @@
     }
   }
   function applyPowerup(type) {
+    sfx("power");
     if (type === "speed") snake.speedTimer = CONFIG.SPEEDCUBE_TIME;
     else if (type === "radar") snake.radarTimer = CONFIG.RADAR_TIME;
     else if (type === "magnet") snake.magnetTimer = CONFIG.MAGNET_TIME;
@@ -699,6 +703,7 @@
   function drawFlash() { if (flash > 0) { ctx.save(); ctx.globalAlpha = clamp(flash, 0, 0.5); ctx.fillStyle = flashCol; ctx.fillRect(0, 0, W, H); ctx.restore(); } }
   const shakeOffset = () => (shake > 0 ? { x: (Math.random() * 2 - 1) * shake * 18, y: (Math.random() * 2 - 1) * shake * 18 } : { x: 0, y: 0 });
   function spawnMergeFx(value) {
+    sfx("merge");
     const glow = blockStyle(value || 4).glow;
     spawnBurst(snake.x, snake.y, glow, 16);
     spawnRing(snake.x, snake.y, glow);
@@ -978,6 +983,7 @@
     document.getElementById("chat-bar").classList.remove("hidden");
     document.body.classList.add("in-game");
     state = "playing";
+    try { if (window.Sound) Sound.startMusic(); } catch (e) {} // موسيقى أثناء اللعب
     try { history.pushState({ p: "game" }, ""); } catch (_) {} // لاعتراض زر الرجوع
     syncPowers();
     document.getElementById("start-screen").classList.add("hidden");
@@ -992,6 +998,7 @@
     deathBest = headValue() || 0; deathScore = score();
     if (deathBest > highScore) { highScore = deathBest; try { localStorage.setItem("snake2048_high", String(highScore)); } catch (e) {} }
     if (online) netSend({ t: "dead" });
+    sfx("death"); try { if (window.Sound) Sound.vibrate(140); } catch (e) {}
     spawnDeathFx();
     state = "dying"; deathTimer = 0.62; // القطع تتطاير ثم تختفي فجأة ثم تظهر شاشة الخسارة
     document.getElementById("chat-bar").classList.add("hidden");
@@ -1064,7 +1071,7 @@
   // الفوز عند بلوغ اللانهائية: تنتهي اللعبة، والفائز يبدأ التالية ومعه 3 شحنات
   function winGame(winner, winnerId) {
     if (state !== "playing") return;
-    state = "won";
+    state = "won"; sfx("win");
     if (!online || winnerId === myId) { prizeCharges = 3; savePrize(); } // الجائزة للفائز فقط، وتبقى محفوظة
     if (headValue() > highScore) { highScore = headValue(); try { localStorage.setItem("snake2048_high", String(highScore)); } catch (e) {} }
     document.getElementById("win-name").textContent = winner;
@@ -1075,6 +1082,7 @@
   }
   function useCharge() {
     if (snake.charges <= 0 || state !== "playing") return;
+    sfx("power");
     snake.charges--; prizeCharges = snake.charges; savePrize(); // تُخصم من الجائزة المحفوظة عند الاستعمال فقط
     snake.values = snake.values.map((v) => v * 2);
     spawnBurst(snake.x, snake.y, "#37d67a", 18); updateCharges();
@@ -1101,7 +1109,7 @@
     { id: "magnet", icon: "🧲", key: "M", run: () => { snake.magnetTimer = CONFIG.MAGNET_TIME; } },
     // أضف أي ميزة مستقبلية هنا وتظهر له تلقائياً
   ];
-  function usePower(id) { if (state !== "playing" || !isBinAref()) return; const a = ABILITIES.find((x) => x.id === id); if (a) a.run(); }
+  function usePower(id) { if (state !== "playing" || !isBinAref()) return; const a = ABILITIES.find((x) => x.id === id); if (a) { sfx("power"); a.run(); } }
   function buildPowers() {
     const el = document.getElementById("powers"); el.innerHTML = "";
     for (const a of ABILITIES) {
@@ -1153,6 +1161,8 @@
         if (snake.stamina <= 0) { snake.stamina = 0; snake.boosting = false; snake.exhausted = true; snake.staminaDelay = CONFIG.STAMINA_DELAY; }
       } else snake.stamina = Math.min(1, snake.stamina + CONFIG.BOOST_REFILL * dt);
     }
+    if (snake.boosting && !wasBoosting) sfx("boost"); // صوت عند بدء الاندفاع فقط
+    wasBoosting = snake.boosting;
     if (snake.speedTimer > 0) snake.speedTimer = Math.max(0, snake.speedTimer - dt);
     if (snake.radarTimer > 0) snake.radarTimer = Math.max(0, snake.radarTimer - dt);
     if (snake.magnetTimer > 0) {
@@ -2109,6 +2119,7 @@
     hideRoomCodeHud(); document.body.classList.remove("in-game");
     hostLobby = false;
     if (localNet && Nearby) { try { Nearby.stop(); } catch (_) {} } localNet = false;
+    try { if (window.Sound) Sound.stopMusic(); } catch (e) {} // إيقاف الموسيقى في القائمة
     try { if (peer) peer.destroy(); } catch (_) {}
     document.getElementById("start-screen").classList.remove("hidden");
     document.getElementById("chat-bar").classList.add("hidden");
@@ -2305,6 +2316,15 @@
     document.querySelectorAll("#shape-options .shape-btn").forEach((b) => b.classList.toggle("active", b.dataset.shape === blockShape));
   }
   updateShapeUI();
+
+  // كتم/تشغيل الصوت (يزامن مفتاحَي المنيو والإيقاف المؤقت)
+  window.toggleSound = function () {
+    if (!window.Sound) return;
+    const m = Sound.toggleMute(), on = !m;
+    const a = document.getElementById("snd-toggle"); if (a) a.checked = on;
+    const b = document.getElementById("pause-snd-toggle"); if (b) b.checked = on;
+  };
+  try { const on = !(window.Sound && Sound.isMuted()); const a = document.getElementById("snd-toggle"); if (a) a.checked = on; const b = document.getElementById("pause-snd-toggle"); if (b) b.checked = on; } catch (e) {}
 
   buildPowers();
   if (isNativeApp) { try { document.getElementById("local-lan").classList.remove("hidden"); } catch (e) {} } // لعب محلي في التطبيق فقط
