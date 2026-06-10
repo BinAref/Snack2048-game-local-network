@@ -524,9 +524,9 @@
       while (dprojTimer >= interval) {
         dprojTimer -= interval;
         const dz = dangers[(Math.random() * dangers.length) | 0];
-        const a = rand(0, Math.PI * 2), sp = rand(9, 15);
+        const a = rand(0, Math.PI * 2), sp = rand(9, 15) * mapSpeed();
         const turn = gameLevel >= 4 ? rand(-1.6, 1.6) : 0; // حلزوني في المستويات الأعلى
-        dangerProjectiles.push({ x: dz.x, y: dz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: rand(2.5, 4), turn, age: 0 });
+        dangerProjectiles.push({ x: dz.x, y: dz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: clamp(CONFIG.WORLD * 0.03, 1.5, 4), turn, age: 0 });
       }
     }
     for (let i = dangerProjectiles.length - 1; i >= 0; i--) {
@@ -549,7 +549,8 @@
     const p = freePos(1), v = weighted(FOOD_WEIGHTS, "v");
     const moving = Math.random() < CONFIG.MOVING_FOOD_RATIO;
     const a = rand(0, Math.PI * 2);
-    return { id: nextItemId++, x: p.x, y: p.y, value: v, size: sizeForValue(v), vx: moving ? Math.cos(a) * 2.2 : 0, vy: moving ? Math.sin(a) * 2.2 : 0 };
+    const fs = 2.2 * mapSpeed(); // سرعة الطعام المتحرّك ∝ الساحة
+    return { id: nextItemId++, x: p.x, y: p.y, value: v, size: sizeForValue(v), vx: moving ? Math.cos(a) * fs : 0, vy: moving ? Math.sin(a) * fs : 0 };
   }
   function looseFood(x, y, v) {
     return { id: nextItemId++, x, y, value: Math.max(2, v), size: sizeForValue(Math.max(2, v)), vx: 0, vy: 0, noEat: now + 1.2, loose: true };
@@ -572,6 +573,8 @@
       mapTri = [0, 1, 2].map((i) => { const a = -Math.PI / 2 + i * (Math.PI * 2 / 3); return { x: Math.cos(a) * R * 1.3, y: Math.sin(a) * R * 1.3 }; });
 
     obstacles = []; dangers = [];
+    const ss = clamp(R / CONFIG.WORLD_MAX, 0.4, 1); // مقياس أحجام الحواجز حسب الساحة
+    const clearO = Math.min(18, R * 0.5);           // مركز نظيف نسبةً للساحة
     if (mapShape === "maze") {
       // متاهة: شبكة جدران غير قاتلة
       const cells = 6, gap = (R * 1.5) / cells;
@@ -579,31 +582,31 @@
         for (let j = -cells; j <= cells; j++) {
           if (Math.random() < 0.30) {
             const x = i * gap, y = j * gap;
-            if (Math.hypot(x, y) < 16 || !inBounds(x, y)) continue;
+            if (Math.hypot(x, y) < Math.min(16, R * 0.5) || !inBounds(x, y)) continue;
             obstacles.push({ x, y, hw: gap * 0.32, hh: gap * 0.32, h: 5.0, color: "#3a4a66", kind: "box" });
           }
         }
     } else {
-      const count = 5 + Math.floor(Math.random() * 5);
+      const count = clamp(Math.round((5 + Math.random() * 5) * mapFrac()), 0, 12); // عدد الحواجز ∝ الساحة
       const KINDS = ["box", "cyl", "hex"];
       let tries = 0;
       while (obstacles.length < count && tries < 300) {
         tries++;
         const x = rand(-R * 0.8, R * 0.8), y = rand(-R * 0.8, R * 0.8);
-        if (Math.hypot(x, y) < 18 || !inBounds(x, y)) continue;
+        if (Math.hypot(x, y) < clearO || !inBounds(x, y)) continue;
         const kind = KINDS[(Math.random() * KINDS.length) | 0];
         let hw, hh;
-        if (kind === "box") { const longish = Math.random() < 0.5, a = rand(3, 9), b = rand(3, 9); hw = longish ? a * 1.6 : a; hh = longish ? b : b * 1.6; }
-        else { hw = hh = rand(4, 7); } // أعمدة دائرية/سداسية مربعة القاعدة
+        if (kind === "box") { const longish = Math.random() < 0.5, a = rand(3, 9) * ss, b = rand(3, 9) * ss; hw = longish ? a * 1.6 : a; hh = longish ? b : b * 1.6; }
+        else { hw = hh = rand(4, 7) * ss; } // أعمدة دائرية/سداسية مربعة القاعدة
         let ok = true;
         for (const o of obstacles) if (Math.abs(o.x - x) < o.hw + hw + 4 && Math.abs(o.y - y) < o.hh + hh + 4) { ok = false; break; }
         if (ok) obstacles.push({ x, y, hw, hh, h: 5.0, color: "#3a4a66", kind });
       }
     }
-    // مناطق خطر (تزيد مع المستوى) بأشكال مختلفة
+    // مناطق خطر (عددها ∝ الساحة والمستوى، وأحجامها ∝ الساحة)
     dangerProjectiles = []; dprojTimer = 0;
     const DSHAPES = ["circle", "square", "triangle"];
-    const dz = 3 + gameLevel;
+    const dz = clamp(Math.round((3 + gameLevel) * mapFrac()), 1, 12);
     const clearR = Math.min(20, R * 0.55); // ابقِ مركزاً نظيفاً نسبةً لحجم الساحة (يمنع التعليق في الساحات الصغيرة)
     const dRad = clamp(R * 0.1, 3, 11);     // نصف قطر الخطر يتناسب مع الساحة
     let dtries = 0;
@@ -619,7 +622,7 @@
     genMap();
     foods = []; powerups = [];
     for (let i = 0; i < foodTarget(); i++) foods.push(spawnFood());
-    for (let i = 0; i < CONFIG.POWERUP_COUNT; i++) powerups.push(spawnPowerup());
+    for (let i = 0; i < powerupTarget(); i++) powerups.push(spawnPowerup());
   }
   // حجم الساحة ديناميكي: صغير منفرداً ويكبر مع عدد الكائنات (لا ينكمش خلال اللعبة)
   const entityCount = () => 1 + bots.size + remotes.size;
@@ -633,6 +636,11 @@
     let add = foodTarget() - reg;
     while (add-- > 0 && foods.length < 240) foods.push(spawnFood());
   }
+  // عوامل التناسب مع حجم الساحة
+  const mapFrac = () => CONFIG.WORLD / CONFIG.WORLD_MAX;            // 0..1
+  const mapSpeed = () => clamp(mapFrac(), 0.55, 1);                 // السرعة تتناسب مع الساحة (بحدّ أدنى)
+  function powerupTarget() { return clamp(Math.round(CONFIG.POWERUP_COUNT * mapFrac()), 1, CONFIG.POWERUP_COUNT); }
+  function maintainPowerups() { let add = powerupTarget() - powerups.length; while (add-- > 0 && powerups.length < 30) powerups.push(spawnPowerup()); }
 
   // =====================================================================
   // الأكل + الدمج + القوى + القطع
@@ -1041,7 +1049,7 @@
     let m = 1;
     if (snake.speedTimer > 0) m *= CONFIG.SPEEDCUBE_MULT;
     if (snake.boosting) m *= CONFIG.BOOST_MULT;
-    return CONFIG.SPEED * m;
+    return CONFIG.SPEED * m * mapSpeed(); // السرعة تتناسب مع حجم الساحة
   }
   function steerTo(sdx, sdy, dt) {
     const o = unproject(W / 2, H / 2), p = unproject(W / 2 + sdx, H / 2 + sdy);
@@ -1452,7 +1460,7 @@
     if (bot.speedTimer > 0) bot.speedTimer = Math.max(0, bot.speedTimer - dt);
     if (bot.radarTimer > 0) bot.radarTimer = Math.max(0, bot.radarTimer - dt);
     if (bot.magnetTimer > 0) { bot.magnetTimer = Math.max(0, bot.magnetTimer - dt); for (const f of foods) { const dx = bot.x - f.x, dy = bot.y - f.y, d = Math.hypot(dx, dy); if (d < CONFIG.MAGNET_RANGE && d > 0.1) { const pull = Math.min(CONFIG.MAGNET_PULL * dt, d); f.x += dx / d * pull; f.y += dy / d * pull; } } }
-    const boosting = bot.boost && bot.stamina > 0.02, sp = CONFIG.SPEED * (bot.speedTimer > 0 ? CONFIG.SPEEDCUBE_MULT : 1) * (boosting ? CONFIG.BOOST_MULT : 1);
+    const boosting = bot.boost && bot.stamina > 0.02, sp = CONFIG.SPEED * (bot.speedTimer > 0 ? CONFIG.SPEEDCUBE_MULT : 1) * (boosting ? CONFIG.BOOST_MULT : 1) * mapSpeed();
     bot.x += Math.cos(bot.angle) * sp * dt; bot.y += Math.sin(bot.angle) * sp * dt;
     if (!inBounds(bot.x, bot.y)) { killBot(bot); return; }
     pushOutObstaclesBot(bot);
@@ -1510,7 +1518,7 @@
     } else { playerReign = 0; } // فقدان الصدارة يصفّر العدّاد (يبدأ 6 دقائق جديدة عند العودة)
   }
   function manageBots(dt) {
-    updateWorldSize(dt); maintainFood(); // الساحة تكبر مع العدد + ملء الطعام حسب المساحة
+    updateWorldSize(dt); maintainFood(); maintainPowerups(); // الساحة تكبر مع العدد + ملء الطعام/القوى حسب المساحة
     if (!aiEnabled) { if (bots.size) bots.clear(); return; }
     let target;
     if (online) target = Math.max(0, 20 - (1 + clientConns.size));
