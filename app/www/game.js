@@ -1638,7 +1638,7 @@
     for (const r of remotes.values()) drawRemoteLabel(r);
     for (const bt of bots.values()) drawRemoteLabel({ x: bt.x, y: bt.y, head: bt.values[0], name: bt.name, color: bt.color, emojiLife: bt.emojiLife, emojiEm: bt.emojiEm });
     drawArrow(); drawNameLabel(); drawEmojis();
-    if (snake.radarTimer > 0) { drawRadar(); drawPowerupRadar(); }
+    if (snake.radarTimer > 0) { drawPowerupRadar(); drawEffectTimer("📡", snake.radarTimer, "#ffd23f", 0); } // الرادار يكشف الكنوز/القوى
     if (snake.magnetTimer > 0) drawEffectTimer("🧲", snake.magnetTimer, "#c79bff", snake.radarTimer > 0 ? 1 : 0);
     if (state === "playing") drawMinimap();
     drawKillFeed();
@@ -1659,21 +1659,21 @@
     }
     ctx.restore();
   }
-  // خريطة مصغّرة: حدود العالم + موقعك + القوى + الخطر + الأعداء القريبين (أو الكل عند الرادار)
+  // خريطة مصغّرة: الأعداء فقط (أحمر، الأقوى أكبر) + موقعك. وعند الرادار تظهر القوى/الكنوز بالأصفر.
   function drawMinimap() {
     const S = Math.min(W, H) * 0.2, pad = 12, x0 = pad, y0 = H - S - pad, R = CONFIG.WORLD;
     const mx = (v) => x0 + (v + R) / (2 * R) * S, my = (v) => y0 + (v + R) / (2 * R) * S;
+    const dot = (hv) => clamp(1.8 + log2(Math.max(2, hv)) * 0.5, 2, 6.5); // الأقوى = أكبر
     ctx.save();
     ctx.globalAlpha = 0.82; ctx.fillStyle = "rgba(6,16,30,0.7)"; ctx.fillRect(x0, y0, S, S);
     ctx.strokeStyle = "rgba(0,212,255,0.4)"; ctx.lineWidth = 1.5; ctx.strokeRect(x0, y0, S, S);
-    ctx.fillStyle = "rgba(255,60,60,0.45)";
-    for (const d of dangers) ctx.fillRect(mx(d.x) - 2, my(d.y) - 2, 4, 4);
-    for (const p of powerups) { ctx.fillStyle = (POWERUPS[p.type] || {}).glow || "#9b5de5"; ctx.fillRect(mx(p.x) - 1.5, my(p.y) - 1.5, 3, 3); }
-    const showAll = snake.radarTimer > 0;
-    const near = (e) => showAll || Math.hypot(e.x - snake.x, e.y - snake.y) < 55;
+    // الأعداء (أحمر، حجم حسب القوة)
     ctx.fillStyle = "#ff3b3b";
-    for (const r of remotes.values()) if (r.x != null && near(r)) ctx.fillRect(mx(r.x) - 1.5, my(r.y) - 1.5, 3, 3);
-    for (const b of bots.values()) if (near(b)) ctx.fillRect(mx(b.x) - 1.5, my(b.y) - 1.5, 3, 3);
+    for (const r of remotes.values()) if (r.x != null) { ctx.beginPath(); ctx.arc(mx(r.x), my(r.y), dot(r.head || 2), 0, Math.PI * 2); ctx.fill(); }
+    for (const b of bots.values()) { ctx.beginPath(); ctx.arc(mx(b.x), my(b.y), dot(b.values[0]), 0, Math.PI * 2); ctx.fill(); }
+    // عند الرادار: كشف القوى/الكنوز (أصفر)
+    if (snake.radarTimer > 0) { ctx.fillStyle = "#ffd23f"; for (const p of powerups) { ctx.beginPath(); ctx.arc(mx(p.x), my(p.y), 2.6, 0, Math.PI * 2); ctx.fill(); } }
+    // اللاعب
     ctx.fillStyle = "#19d3ff"; ctx.beginPath(); ctx.arc(mx(snake.x), my(snake.y), 3, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
@@ -2350,9 +2350,11 @@
   };
   // إغلاق اللعبة (المتصفح/التطبيق)
   window.quitGame = function () {
-    try { window.close(); } catch (e) {}
+    // التطبيق الأصلي: أغلق التطبيق فعلياً
+    try { if (window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.App) { Capacitor.Plugins.App.exitApp(); return; } } catch (e) {}
+    // المتصفّح/PWA: حاول إغلاق التبويب (ينجح إن فُتح عبر سكربت أو في وضع التطبيق المستقل) — بلا about:blank
     try { window.open("", "_self"); window.close(); } catch (e) {}
-    setTimeout(() => { try { location.href = "about:blank"; } catch (e) {} }, 120);
+    try { window.close(); } catch (e) {}
   };
 
   // اختيار شكل المكعبات (درب‑داون جانبي)
@@ -2395,19 +2397,37 @@
     applyQuality();
   } catch (e) {}
 
-  // ===== الإنجازات + ملفّ اللاعب =====
+  // ===== الإنجازات (نظام متدرّج) + ملفّ اللاعب =====
   const ACHIEVEMENTS = [
-    { id: "a2048", icon: "🔢", test: (s) => s.best >= 2048 },
-    { id: "giant", icon: "🟦", test: (s) => s.best >= 8192 },
-    { id: "kill10", icon: "⚔️", test: (s) => s.kills >= 10 },
-    { id: "kill50", icon: "🗡️", test: (s) => s.kills >= 50 },
-    { id: "play30", icon: "⏱️", test: (s) => s.playSec >= 1800 },
-    { id: "games50", icon: "🎮", test: (s) => s.games >= 50 },
-    { id: "king", icon: "👑", test: (s) => s.reign >= 360 },
-    { id: "cup", icon: "🏆", test: (s) => s.cups >= 1 },
+    { type: "num", v: 1024, icon: "🔢" }, { type: "num", v: 2048, icon: "🔢" }, { type: "num", v: 4096, icon: "🟦" },
+    { type: "num", v: 8192, icon: "🟦" }, { type: "num", v: 16384, icon: "💎" }, { type: "num", v: 32768, icon: "💠" },
+    { type: "kills", v: 10, icon: "⚔️" }, { type: "kills", v: 50, icon: "🗡️" }, { type: "kills", v: 100, icon: "💀" }, { type: "kills", v: 250, icon: "☠️" },
+    { type: "games", v: 10, icon: "🎮" }, { type: "games", v: 50, icon: "🎮" }, { type: "games", v: 100, icon: "🕹️" },
+    { type: "play", v: 1800, icon: "⏱️" }, { type: "play", v: 7200, icon: "⏳" },
+    { type: "king", v: 360, icon: "👑" }, { type: "king", v: 1800, icon: "👑" },
+    { type: "cup", v: 1, icon: "🏆" }, { type: "cup", v: 5, icon: "🏆" }, { type: "cup", v: 10, icon: "🥇" },
   ];
+  const achId = (a) => a.type + a.v;
+  function achTest(a, s) {
+    if (a.type === "num") return (s.best || 0) >= a.v;
+    if (a.type === "kills") return (s.kills || 0) >= a.v;
+    if (a.type === "games") return (s.games || 0) >= a.v;
+    if (a.type === "play") return (s.playSec || 0) >= a.v;
+    if (a.type === "king") return (s.reign || 0) >= a.v;
+    if (a.type === "cup") return (s.cups || 0) >= a.v;
+    return false;
+  }
+  function achName(a) {
+    if (a.type === "num") return t("achReach") + " " + fmtNum(a.v);
+    if (a.type === "kills") return a.v + " " + t("achKills");
+    if (a.type === "games") return a.v + " " + t("stGames");
+    if (a.type === "play") return t("achPlay") + " " + Math.round(a.v / 60) + "m";
+    if (a.type === "king") return "👑 " + Math.round(a.v / 60) + "m";
+    if (a.type === "cup") return a.v + " " + t("stCups");
+    return "";
+  }
   function checkAchievements() {
-    for (const a of ACHIEVEMENTS) if (!stats.ach[a.id] && a.test(stats)) { stats.ach[a.id] = 1; notify("🏅 " + t("ach_" + a.id)); sfx("win"); }
+    for (const a of ACHIEVEMENTS) { const id = achId(a); if (!stats.ach[id] && achTest(a, stats)) { stats.ach[id] = 1; notify("🏅 " + achName(a)); sfx("win"); } }
     saveStats();
   }
   function recordGameEnd(won) {
@@ -2419,14 +2439,16 @@
   }
   window.openProfile = function () {
     const card = (ic, val, lb) => `<div class="stat"><div class="stat-ic">${ic}</div><div class="stat-val">${val}</div><div class="stat-lb">${lb}</div></div>`;
+    const got = ACHIEVEMENTS.filter((a) => stats.ach[achId(a)]).length;
     document.getElementById("profile-stats").innerHTML =
       card("🔢", fmtNum(Math.max(stats.best || 0, highScore || 0)), t("stBest")) +
       card("🎮", stats.games || 0, t("stGames")) +
       card("⚔️", stats.kills || 0, t("stKills")) +
       card("⏱️", Math.floor((stats.playSec || 0) / 60) + "m", t("stTime")) +
-      card("🏆", stats.cups || 0, t("stCups"));
+      card("🏆", stats.cups || 0, t("stCups")) +
+      card("🏅", got + "/" + ACHIEVEMENTS.length, t("achievements"));
     document.getElementById("profile-ach").innerHTML = ACHIEVEMENTS.map((a) =>
-      `<div class="ach ${stats.ach[a.id] ? "got" : ""}"><div class="ach-ic">${a.icon}</div><div class="ach-nm">${t("ach_" + a.id)}</div></div>`).join("");
+      `<div class="ach ${stats.ach[achId(a)] ? "got" : ""}"><div class="ach-ic">${a.icon}</div><div class="ach-nm">${achName(a)}</div></div>`).join("");
     document.getElementById("profile-screen").classList.remove("hidden");
   };
   window.closeProfile = function () { document.getElementById("profile-screen").classList.add("hidden"); };

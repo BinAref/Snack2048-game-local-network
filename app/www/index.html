@@ -64,14 +64,24 @@
   <!-- ===== شاشة البداية ===== -->
   <div id="start-screen" class="overlay">
     <div class="panel menu-panel">
-      <button id="quit-btn" class="corner-quit corner-start" onclick="quitGame()">✕ <span data-i18n="closeGame">إغلاق اللعبة</span></button>
-      <button id="help-btn" class="corner-btn corner-under-lang" onclick="openHelp()" data-i18n-title="help">❓</button>
-      <div id="lang-dd" class="lang-dd corner">
-        <button id="lang-btn" type="button" onclick="toggleLangMenu()">🌐 <span id="lang-current">EN</span></button>
-        <div id="lang-menu" class="lang-menu hidden">
-          <input id="lang-search" type="text" oninput="filterLangs()" />
-          <ul id="lang-list"></ul>
+      <!-- زاوية: الملف الشخصي ثم الإغلاق -->
+      <div class="corner-cluster start-cluster">
+        <button id="profile-btn" class="corner-btn" onclick="openProfile()" data-i18n-title="profile">👤</button>
+        <button id="quit-btn" class="corner-quit" onclick="quitGame()">✕ <span data-i18n="closeGame">إغلاق اللعبة</span></button>
+      </div>
+      <!-- زاوية: الإعدادات ثم اللغة، والتعليمات أسفل الإعدادات -->
+      <div class="corner-cluster end-cluster">
+        <div class="end-row">
+          <button id="settings-btn" class="corner-btn" onclick="openSettings()" data-i18n-title="settings">⚙️</button>
+          <div id="lang-dd" class="lang-dd">
+            <button id="lang-btn" type="button" onclick="toggleLangMenu()">🌐 <span id="lang-current">EN</span></button>
+            <div id="lang-menu" class="lang-menu hidden">
+              <input id="lang-search" type="text" oninput="filterLangs()" />
+              <ul id="lang-list"></ul>
+            </div>
+          </div>
         </div>
+        <button id="help-btn" class="corner-btn" onclick="openHelp()" data-i18n-title="help">❓</button>
       </div>
 
       <div class="logo-block">
@@ -89,31 +99,28 @@
       <input id="name-input" type="text" maxlength="14" autocomplete="off"/>
       <button id="dl-game-btn" class="ghost-btn dl-game-btn" onclick="openDownload()">⬇ <span data-i18n="dlGame">تحميل اللعبة</span></button>
 
-      <div id="shape-dd">
-        <span class="shape-label" data-i18n="shape">الشكل</span>
-        <button id="shape-toggle" class="shape-btn active" onclick="toggleShapeDD()">⬛</button>
-        <div id="shape-options" class="hidden">
-          <button class="shape-btn" data-shape="cube" onclick="selectShape('cube')">⬛</button>
-          <button class="shape-btn" data-shape="sphere" onclick="selectShape('sphere')">⚫</button>
-          <button class="shape-btn" data-shape="cylinder" onclick="selectShape('cylinder')">🛢️</button>
-          <button class="shape-btn" data-shape="gem" onclick="selectShape('gem')">🔷</button>
-          <button class="shape-btn" data-shape="hex" onclick="selectShape('hex')">⬡</button>
-          <button class="shape-btn" data-shape="pyramid" onclick="selectShape('pyramid')">🔺</button>
-          <button class="shape-btn" data-shape="star" onclick="selectShape('star')">⭐</button>
+      <!-- بوتات + شكل جنباً إلى جنب -->
+      <div class="ai-shape-row">
+        <div class="toggle-row ai-row">
+          <span class="toggle-label">🤖 <span data-i18n="aiEnemies">أعداء AI</span></span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="ai-toggle" onchange="toggleAI()" checked/>
+            <span class="slider"></span>
+          </label>
         </div>
-      </div>
-
-      <div class="toggle-row ai-row">
-        <span class="toggle-label">🤖 <span data-i18n="aiEnemies">أعداء AI</span></span>
-        <label class="toggle-switch">
-          <input type="checkbox" id="ai-toggle" onchange="toggleAI()" checked/>
-          <span class="slider"></span>
-        </label>
-      </div>
-
-      <div class="play-row">
-        <button id="settings-btn" class="ghost-btn" onclick="openSettings()">⚙️ <span data-i18n="settings">الإعدادات</span></button>
-        <button id="profile-btn" class="ghost-btn" onclick="openProfile()">👤 <span data-i18n="profile">ملفّي</span></button>
+        <div id="shape-dd">
+          <span class="shape-label" data-i18n="shape">الشكل</span>
+          <button id="shape-toggle" class="shape-btn active" onclick="toggleShapeDD()">⬛</button>
+          <div id="shape-options" class="hidden">
+            <button class="shape-btn" data-shape="cube" onclick="selectShape('cube')">⬛</button>
+            <button class="shape-btn" data-shape="sphere" onclick="selectShape('sphere')">⚫</button>
+            <button class="shape-btn" data-shape="cylinder" onclick="selectShape('cylinder')">🛢️</button>
+            <button class="shape-btn" data-shape="gem" onclick="selectShape('gem')">🔷</button>
+            <button class="shape-btn" data-shape="hex" onclick="selectShape('hex')">⬡</button>
+            <button class="shape-btn" data-shape="pyramid" onclick="selectShape('pyramid')">🔺</button>
+            <button class="shape-btn" data-shape="star" onclick="selectShape('star')">⭐</button>
+          </div>
+        </div>
       </div>
 
       <!-- وضع منفرد / جماعي (أيقونات) -->
@@ -299,9 +306,11 @@
     <div class="panel">
       <button class="close-x" onclick="closeSettings()" aria-label="close">✕</button>
       <h1 data-i18n="settings">الإعدادات</h1>
-      <div class="toggle-row"><span class="toggle-label">🔊 <span data-i18n="sound">الصوت</span></span><label class="toggle-switch"><input type="checkbox" id="set-sound" onchange="toggleSound()" checked/><span class="slider"></span></label></div>
-      <div class="toggle-row"><span class="toggle-label">📳 <span data-i18n="haptics">الاهتزاز</span></span><label class="toggle-switch"><input type="checkbox" id="set-haptics" onchange="toggleHaptics()" checked/><span class="slider"></span></label></div>
-      <div class="toggle-row"><span class="toggle-label">✨ <span data-i18n="quality">جودة عالية</span></span><label class="toggle-switch"><input type="checkbox" id="set-quality" onchange="toggleQuality()" checked/><span class="slider"></span></label></div>
+      <div class="settings-grid">
+        <div class="set-card"><span class="set-ic">🔊</span><span class="set-lb" data-i18n="sound">الصوت</span><label class="toggle-switch"><input type="checkbox" id="set-sound" onchange="toggleSound()" checked/><span class="slider"></span></label></div>
+        <div class="set-card"><span class="set-ic">📳</span><span class="set-lb" data-i18n="haptics">الاهتزاز</span><label class="toggle-switch"><input type="checkbox" id="set-haptics" onchange="toggleHaptics()" checked/><span class="slider"></span></label></div>
+        <div class="set-card"><span class="set-ic">✨</span><span class="set-lb" data-i18n="quality">جودة عالية</span><label class="toggle-switch"><input type="checkbox" id="set-quality" onchange="toggleQuality()" checked/><span class="slider"></span></label></div>
+      </div>
       <button class="main-btn" onclick="closeSettings()" data-i18n="close">إغلاق</button>
     </div>
   </div>

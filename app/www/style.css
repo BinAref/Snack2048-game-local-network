@@ -173,6 +173,12 @@ body::after {
 #pause-ai-row.hidden { display: none; }
 #local-lan.hidden { display: none; }
 .lan-title { font-family: var(--font-data); color: var(--neon-purple); font-size: 13px; text-align: center; margin: 0 0 8px; }
+/* لوحة الإعدادات (بطاقات مريحة) */
+.settings-grid { display: flex; flex-direction: column; gap: 10px; margin: 12px 0 16px; }
+.set-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--radius-sm); background: rgba(0,212,255,0.06); border: 1px solid var(--border-neon); }
+.set-card:hover { background: rgba(0,212,255,0.1); }
+.set-ic { font-size: 20px; width: 24px; text-align: center; }
+.set-lb { flex: 1; font-size: 15px; text-align: start; }
 /* ملفّ اللاعب والإنجازات */
 .profile-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 6px 0 14px; }
 .stat { background: rgba(0,212,255,0.06); border: 1px solid var(--border-neon); border-radius: var(--radius-sm); padding: 9px 4px; text-align: center; }
@@ -281,18 +287,17 @@ body::after {
   color: var(--neon-gold); text-shadow: var(--glow-gold);
 }
 
-/* اللغة في الزاوية */
 .lang-dd { position: relative; }
-.lang-dd.corner { position: absolute; top: 14px; inset-inline-end: 14px; z-index: 5; }
-
-/* زر التعليمات (الجهة المقابلة للغة) */
-.corner-btn { position: absolute; top: 14px; z-index: 5; width: 38px; height: 34px; border-radius: var(--radius-sm);
+/* مجموعات الزوايا */
+.corner-cluster { position: absolute; top: 14px; z-index: 6; display: flex; }
+.start-cluster { inset-inline-start: 14px; flex-direction: row; gap: 8px; align-items: center; }
+.end-cluster { inset-inline-end: 14px; flex-direction: column; gap: 8px; align-items: flex-end; }
+.end-row { display: flex; gap: 8px; align-items: center; }
+.corner-btn { width: 38px; height: 34px; border-radius: var(--radius-sm); flex: 0 0 auto;
   background: rgba(0,212,255,0.08); border: 1px solid var(--border-neon); color: var(--text-accent); font-size: 16px; cursor: pointer;
   display: flex; align-items: center; justify-content: center; }
 .corner-btn:hover { background: rgba(0,212,255,0.18); box-shadow: var(--glow-blue); }
-.corner-start { inset-inline-start: 14px; }
-.corner-under-lang { inset-inline-end: 14px; top: 56px; } /* زر ؟ أسفل زر اللغة */
-.corner-quit { position: absolute; top: 14px; z-index: 5; padding: 7px 11px; font-size: 12px; border-radius: var(--radius-sm);
+.corner-quit { padding: 7px 11px; font-size: 12px; border-radius: var(--radius-sm); flex: 0 0 auto;
   border: 1px solid var(--neon-red); color: var(--neon-red); background: rgba(255,48,48,0.07); cursor: pointer; white-space: nowrap;
   display: flex; align-items: center; justify-content: center; gap: 4px; text-align: center; }
 .corner-quit:hover { background: rgba(255,48,48,0.16); box-shadow: var(--glow-red); }
@@ -419,6 +424,10 @@ body::after {
 /* ===== Toggle (لم يعد مستخدماً لكن نُبقيه آمناً) ===== */
 .toggle-row { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .ai-row { margin-bottom: 14px; }
+/* البوتات + الشكل جنباً إلى جنب */
+.ai-shape-row { display: flex; gap: 12px; align-items: center; justify-content: center; margin-bottom: 14px; flex-wrap: wrap; }
+.ai-shape-row .ai-row { margin-bottom: 0; }
+.ai-shape-row #shape-dd { margin-bottom: 0; }
 .toggle-label { color: var(--text-secondary); font-size: 14px; }
 .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; }
 .toggle-switch input { opacity: 0; width: 0; height: 0; }
