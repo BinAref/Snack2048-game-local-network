@@ -1755,9 +1755,6 @@
   const PEER_PREFIX = "snk2048-";
   let roomCode = "", netItemsCounter = 0, currentRoom = "", migrating = false;
 
-  // خادم الإشارة: افتراضياً سحابة PeerJS (إنترنت). للعب على شبكة محلية بلا إنترنت
-  // شغّل خادم peerjs المحلي (انظر server.js) وضع enabled:true وIP جهاز المضيف.
-  const LAN = { enabled: false, host: "192.168.1.10", port: 9000, path: "/" };
   // خوادم ICE لعبور الشبكات عبر الإنترنت: STUN لاكتشاف العنوان + TURN كملاذ احتياطي للشبكات الصارمة
   const ICE_SERVERS = [
     { urls: "stun:stun.l.google.com:19302" },
@@ -1767,11 +1764,8 @@
     { urls: "turn:global.relay.metered.ca:443", username: "bff9dcf046c2151512c0c118", credential: "y/2G1Uawi49iC2kO" },
     { urls: "turns:global.relay.metered.ca:443?transport=tcp", username: "bff9dcf046c2151512c0c118", credential: "y/2G1Uawi49iC2kO" },
   ];
-  function peerOpts() {
-    return LAN.enabled
-      ? { host: LAN.host, port: LAN.port, path: LAN.path, debug: 1 }
-      : { debug: 1, config: { iceServers: ICE_SERVERS } };
-  }
+  // اللعب الجماعي عبر الإنترنت دائماً (سحابة PeerJS + STUN/TURN). لا يوجد وضع محلي في الويب.
+  function peerOpts() { return { debug: 1, config: { iceServers: ICE_SERVERS } }; }
 
   // واجهة اللوحات
   window.switchMode = function (mode) {
