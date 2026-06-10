@@ -174,11 +174,11 @@ body::after {
 #local-lan.hidden { display: none; }
 .lan-title { font-family: var(--font-data); color: var(--neon-purple); font-size: 13px; text-align: center; margin: 0 0 8px; }
 /* لوحة الإعدادات (بطاقات مريحة) */
-.settings-grid { display: flex; flex-direction: column; gap: 10px; margin: 12px 0 16px; }
-.set-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--radius-sm); background: rgba(0,212,255,0.06); border: 1px solid var(--border-neon); }
+.settings-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0 16px; }
+.set-card { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 6px; border-radius: var(--radius-sm); background: rgba(0,212,255,0.06); border: 1px solid var(--border-neon); }
 .set-card:hover { background: rgba(0,212,255,0.1); }
-.set-ic { font-size: 20px; width: 24px; text-align: center; }
-.set-lb { flex: 1; font-size: 15px; text-align: start; }
+.set-ic { font-size: 22px; }
+.set-lb { font-size: 12px; text-align: center; line-height: 1.2; }
 /* ملفّ اللاعب والإنجازات */
 .profile-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 6px 0 14px; }
 .stat { background: rgba(0,212,255,0.06); border: 1px solid var(--border-neon); border-radius: var(--radius-sm); padding: 9px 4px; text-align: center; }
@@ -186,11 +186,11 @@ body::after {
 .stat-val { font-family: var(--font-data); font-weight: 800; font-size: 16px; color: var(--neon-blue); }
 .stat-lb { font-size: 10px; color: var(--text-secondary); }
 .ach-head { margin: 8px 0 6px; font-size: 15px; }
-.ach-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-bottom: 14px; }
-.ach { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-sm); padding: 8px 3px; text-align: center; opacity: 0.4; filter: grayscale(1); }
-.ach.got { opacity: 1; filter: none; border-color: var(--neon-gold); box-shadow: 0 0 10px rgba(243,156,18,0.4); }
-.ach-ic { font-size: 22px; }
-.ach-nm { font-size: 9px; color: var(--text-secondary); line-height: 1.2; margin-top: 2px; }
+.ach-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 14px; max-height: 190px; overflow-y: auto; padding: 2px; }
+.ach { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-sm); padding: 5px 2px; text-align: center; opacity: 0.4; filter: grayscale(1); }
+.ach.got { opacity: 1; filter: none; border-color: var(--neon-gold); box-shadow: 0 0 8px rgba(243,156,18,0.4); }
+.ach-ic { font-size: 16px; }
+.ach-nm { font-size: 7.5px; color: var(--text-secondary); line-height: 1.15; margin-top: 1px; }
 .power-btn {
   width: 44px; height: 44px; border-radius: var(--radius-sm); cursor: pointer;
   background: linear-gradient(160deg, rgba(155,89,182,0.35), rgba(155,89,182,0.1));
@@ -220,6 +220,11 @@ body::after {
   backdrop-filter: blur(10px); box-shadow: var(--glow-blue);
 }
 #chat-bar.hidden { display: none; }
+#emoji-list { display: flex; gap: 8px; }
+.emoji-toggle { display: none; } /* سطح المكتب: بلا طيّ */
+.emoji-caret { font-size: 9px; margin-inline-start: 1px; }
+body.touch .emoji-toggle { display: inline-flex; align-items: center; justify-content: center; }
+#chat-bar.collapsed #emoji-list { display: none; }
 #chat-bar button { position: relative; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border-neon); cursor: pointer; background: rgba(0,212,255,0.06); font-size: 20px; transition: transform .08s, background .15s, box-shadow .15s; }
 #chat-bar button:hover { background: rgba(0,212,255,0.2); box-shadow: var(--glow-blue); }
 #chat-bar button:active { transform: scale(0.9); }
@@ -506,6 +511,8 @@ body::after {
 .pause-panel { max-width: 320px; }
 .pause-actions { display: flex; flex-direction: column; gap: 14px; margin-top: 22px; }
 .pause-actions .ghost-btn { margin-bottom: 0; }
+.pause-toggles { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+.pause-toggles .toggle-row { margin-bottom: 0; }
 .over-menu { margin-top: 10px; margin-bottom: 0; }
 
 /* إخفاء قسم الانضمام عند القفل */
@@ -599,6 +606,7 @@ body.touch.in-game #boost-btn { display: flex; }
 @media (orientation: portrait) {
   body.touch.in-game #boost-btn { display: none; }
   #chat-bar { flex-direction: column; top: 50%; bottom: auto; left: auto; right: calc(8px + env(safe-area-inset-right)); transform: translateY(-50%); border-radius: 26px; }
+  #emoji-list { flex-direction: column; } /* الإيموجي عمودياً في البورتريه */
   /* الشحنات صفّاً أسفل اليسار، والقوى أعلى اليسار — بعيداً عن دردشة اليمين */
   #charges { left: calc(8px + env(safe-area-inset-left)); right: auto; top: auto; bottom: calc(14px + env(safe-area-inset-bottom)); transform: none; flex-direction: row; }
   #powers { left: calc(8px + env(safe-area-inset-left)); top: 40%; transform: translateY(-50%); }

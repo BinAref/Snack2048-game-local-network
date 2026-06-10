@@ -25,7 +25,7 @@
 
   <!-- HUD: إحصائيات قابلة للطيّ + شريط الطاقة -->
   <div id="hud">
-    <div id="score-box" class="panel-dd" onclick="toggleStats()">
+    <div id="score-box" class="panel-dd">
       <div class="dd-head">
         <span class="dd-title" data-i18n="stats">إحصائياتك</span>
         <span class="dd-arrow" id="stats-arrow">▾</span>
@@ -53,7 +53,7 @@
   </div>
 
   <!-- المتصدّرون: درب‑داون قابل للطيّ -->
-  <div id="leaderboard" class="panel-dd" onclick="toggleLB()">
+  <div id="leaderboard" class="panel-dd">
     <div class="dd-head">
       <span class="dd-title" data-i18n="leaderboard">المتصدّرون</span>
       <span class="dd-arrow" id="lb-arrow">▾</span>
@@ -72,7 +72,6 @@
       <!-- زاوية: الإعدادات ثم اللغة، والتعليمات أسفل الإعدادات -->
       <div class="corner-cluster end-cluster">
         <div class="end-row">
-          <button id="settings-btn" class="corner-btn" onclick="openSettings()" data-i18n-title="settings">⚙️</button>
           <div id="lang-dd" class="lang-dd">
             <button id="lang-btn" type="button" onclick="toggleLangMenu()">🌐 <span id="lang-current">EN</span></button>
             <div id="lang-menu" class="lang-menu hidden">
@@ -80,6 +79,7 @@
               <ul id="lang-list"></ul>
             </div>
           </div>
+          <button id="settings-btn" class="corner-btn" onclick="openSettings()" data-i18n-title="settings">⚙️</button>
         </div>
         <button id="help-btn" class="corner-btn" onclick="openHelp()" data-i18n-title="help">❓</button>
       </div>
@@ -321,13 +321,15 @@
       <h1 data-i18n="paused">إيقاف مؤقت</h1>
       <div class="pause-actions">
         <button class="main-btn" onclick="resumeGame()" data-i18n="resume">استئناف</button>
-        <div class="toggle-row ai-row" id="pause-ai-row">
-          <span class="toggle-label">🤖 <span data-i18n="aiEnemies">أعداء AI</span></span>
-          <label class="toggle-switch"><input type="checkbox" id="pause-ai-toggle" onchange="togglePauseAI()" /><span class="slider"></span></label>
-        </div>
-        <div class="toggle-row">
-          <span class="toggle-label">🔊 <span data-i18n="sound">الصوت</span></span>
-          <label class="toggle-switch"><input type="checkbox" id="pause-snd-toggle" onchange="toggleSound()" /><span class="slider"></span></label>
+        <div class="pause-toggles">
+          <div class="toggle-row ai-row" id="pause-ai-row">
+            <span class="toggle-label">🤖 <span data-i18n="aiEnemies">AI</span></span>
+            <label class="toggle-switch"><input type="checkbox" id="pause-ai-toggle" onchange="togglePauseAI()" /><span class="slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-label">🔊 <span data-i18n="sound">الصوت</span></span>
+            <label class="toggle-switch"><input type="checkbox" id="pause-snd-toggle" onchange="toggleSound()" /><span class="slider"></span></label>
+          </div>
         </div>
         <button class="ghost-btn" onclick="exitToMenu()" data-i18n="exit">الخروج للقائمة</button>
       </div>
@@ -349,11 +351,14 @@
 
   <!-- دردشة الرموز -->
   <div id="chat-bar" class="hidden">
-    <button data-emoji="👍">👍<span class="kbd">1</span></button>
-    <button data-emoji="😱">😱<span class="kbd">2</span></button>
-    <button data-emoji="🔥">🔥<span class="kbd">3</span></button>
-    <button data-emoji="😂">😂<span class="kbd">4</span></button>
-    <button data-emoji="💀">💀<span class="kbd">5</span></button>
+    <button id="emoji-toggle" class="emoji-toggle" onclick="toggleEmojiBar()" aria-label="emoji">😀<span class="emoji-caret">▾</span></button>
+    <div id="emoji-list">
+      <button data-emoji="👍">👍<span class="kbd">1</span></button>
+      <button data-emoji="😱">😱<span class="kbd">2</span></button>
+      <button data-emoji="🔥">🔥<span class="kbd">3</span></button>
+      <button data-emoji="😂">😂<span class="kbd">4</span></button>
+      <button data-emoji="💀">💀<span class="kbd">5</span></button>
+    </div>
   </div>
 
   <script defer src="particles.js"></script>

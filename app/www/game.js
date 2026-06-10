@@ -1045,8 +1045,11 @@
   function updateMedals(dt) {
     if (online && !isHost) { updateMedalBadge(); return; } // العميل يتلقّاها من المضيف
     const leader = computeLeader();
-    if (leader.id !== medal.leaderId) { medal.leaderId = leader.id; medal.leaderName = leader.name; medal.reign = 0; }
-    else {
+    if (leader.id !== medal.leaderId) {
+      const hadMedal = medal.level > 0; // الصدارة انتقلت → الميدالية تنتقل لصاحب الصدارة الجديد
+      medal.leaderId = leader.id; medal.leaderName = leader.name; medal.reign = 0;
+      if (hadMedal) { const msg = "🏅 " + leader.name; notify(msg); if (isHost) hostBroadcast({ t: "medal", level: medal.level, leaderId: medal.leaderId, leaderName: medal.leaderName }); }
+    } else {
       medal.reign += dt;
       if (medal.reign >= CONFIG.REIGN_STEP) {
         medal.reign = 0;
@@ -1494,7 +1497,8 @@
   function manageBots(dt) {
     if (!aiEnabled) { if (bots.size) bots.clear(); return; }
     let target;
-    if (online) target = Math.max(0, 20 - (1 + clientConns.size)); else target = botTarget;
+    if (online) target = Math.max(0, 20 - (1 + clientConns.size));
+    else target = Math.min(20, 1 + Math.floor(playTime / 120)); // الفردي: يبدأ 1 ويزيد 1 كل دقيقتين (~15 عند 30 دقيقة)
     botSpawnCD -= dt;
     if (bots.size < target && botSpawnCD <= 0) { addBot({ strength: rand(0.05, 0.55) }); botSpawnCD = 0.3; }
     updateChallengers(dt);
@@ -1659,21 +1663,26 @@
     }
     ctx.restore();
   }
-  // خريطة مصغّرة: الأعداء فقط (أحمر، الأقوى أكبر) + موقعك. وعند الرادار تظهر القوى/الكنوز بالأصفر.
+  // خريطة مصغّرة: بنفس شكل الأرضية (دائرة/مثلث/مربع)، تكبر تلقائياً كلما زاد رقمك.
   function drawMinimap() {
-    const S = Math.min(W, H) * 0.2, pad = 12, x0 = pad, y0 = H - S - pad, R = CONFIG.WORLD;
+    const base = Math.min(W, H);
+    const S = clamp(base * 0.13 + log2(Math.max(2, headValue())) * base * 0.0065, base * 0.13, base * 0.26);
+    const pad = 12, x0 = pad, y0 = H - S - pad, R = CONFIG.WORLD;
     const mx = (v) => x0 + (v + R) / (2 * R) * S, my = (v) => y0 + (v + R) / (2 * R) * S;
-    const dot = (hv) => clamp(1.8 + log2(Math.max(2, hv)) * 0.5, 2, 6.5); // الأقوى = أكبر
+    const dot = (hv) => clamp(1.6 + log2(Math.max(2, hv)) * 0.45, 1.8, 6);
     ctx.save();
-    ctx.globalAlpha = 0.82; ctx.fillStyle = "rgba(6,16,30,0.7)"; ctx.fillRect(x0, y0, S, S);
-    ctx.strokeStyle = "rgba(0,212,255,0.4)"; ctx.lineWidth = 1.5; ctx.strokeRect(x0, y0, S, S);
-    // الأعداء (أحمر، حجم حسب القوة)
-    ctx.fillStyle = "#ff3b3b";
+    // حدّ الخريطة حسب شكل الأرضية + قصّ النقاط داخله
+    ctx.beginPath();
+    if (mapShape === "circle") ctx.arc(x0 + S / 2, y0 + S / 2, S / 2, 0, Math.PI * 2);
+    else if (mapShape === "triangle" && mapTri) { ctx.moveTo(mx(mapTri[0].x), my(mapTri[0].y)); ctx.lineTo(mx(mapTri[1].x), my(mapTri[1].y)); ctx.lineTo(mx(mapTri[2].x), my(mapTri[2].y)); ctx.closePath(); }
+    else ctx.rect(x0, y0, S, S);
+    ctx.globalAlpha = 0.82; ctx.fillStyle = "rgba(6,16,30,0.7)"; ctx.fill();
+    ctx.strokeStyle = "rgba(0,212,255,0.4)"; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.clip();
+    ctx.fillStyle = "#ff3b3b"; // الأعداء (الأقوى أكبر)
     for (const r of remotes.values()) if (r.x != null) { ctx.beginPath(); ctx.arc(mx(r.x), my(r.y), dot(r.head || 2), 0, Math.PI * 2); ctx.fill(); }
     for (const b of bots.values()) { ctx.beginPath(); ctx.arc(mx(b.x), my(b.y), dot(b.values[0]), 0, Math.PI * 2); ctx.fill(); }
-    // عند الرادار: كشف القوى/الكنوز (أصفر)
-    if (snake.radarTimer > 0) { ctx.fillStyle = "#ffd23f"; for (const p of powerups) { ctx.beginPath(); ctx.arc(mx(p.x), my(p.y), 2.6, 0, Math.PI * 2); ctx.fill(); } }
-    // اللاعب
+    if (snake.radarTimer > 0) { ctx.fillStyle = "#ffd23f"; for (const p of powerups) { ctx.beginPath(); ctx.arc(mx(p.x), my(p.y), 2.6, 0, Math.PI * 2); ctx.fill(); } } // الرادار: الكنوز
     ctx.fillStyle = "#19d3ff"; ctx.beginPath(); ctx.arc(mx(snake.x), my(snake.y), 3, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
@@ -1836,11 +1845,16 @@
   }
 
   // دردشة الرموز (نقر أو أرقام 1..5)
-  const chatButtons = [...document.querySelectorAll("#chat-bar button")];
+  const chatButtons = [...document.querySelectorAll("#emoji-list button")];
   function sendEmoji(em) { if (!em) return; showEmoji(em); if (online) netSend({ t: "emoji", em }); }
   // pointerdown (لا click): يعمل فوراً حتى أثناء تحريك العصا بإصبع آخر (لمس متعدّد)
   chatButtons.forEach((b) => b.addEventListener("pointerdown", (e) => { e.preventDefault(); sendEmoji(b.dataset.emoji); }));
   function emojiByIndex(i) { const b = chatButtons[i]; if (b) sendEmoji(b.dataset.emoji); }
+  // الإحصائيات/المتصدّرون: pointerdown ليعملا أثناء تحريك اللاعب
+  { const sb = document.getElementById("score-box"); if (sb) sb.addEventListener("pointerdown", (e) => { e.preventDefault(); toggleStats(); }); }
+  { const lb = document.getElementById("leaderboard"); if (lb) lb.addEventListener("pointerdown", (e) => { e.preventDefault(); toggleLB(); }); }
+  // طيّ/إظهار شريط الإيموجي (للهاتف)
+  window.toggleEmojiBar = function () { const c = document.getElementById("chat-bar"); if (c) c.classList.toggle("collapsed"); };
 
   // ===== الواجهة: الطيّ + اللغات =====
   let lbOpen = true, statsOpen = true, curLang = "en";
