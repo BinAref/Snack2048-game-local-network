@@ -604,10 +604,14 @@
     dangerProjectiles = []; dprojTimer = 0;
     const DSHAPES = ["circle", "square", "triangle"];
     const dz = 3 + gameLevel;
-    for (let i = 0; i < dz; i++) {
+    const clearR = Math.min(20, R * 0.55); // ابقِ مركزاً نظيفاً نسبةً لحجم الساحة (يمنع التعليق في الساحات الصغيرة)
+    const dRad = clamp(R * 0.1, 3, 11);     // نصف قطر الخطر يتناسب مع الساحة
+    let dtries = 0;
+    for (let i = 0; i < dz && dtries < 400; dtries++) {
       const x = rand(-R * 0.85, R * 0.85), y = rand(-R * 0.85, R * 0.85);
-      if (Math.hypot(x, y) < 20 || !inBounds(x, y)) { i--; continue; }
-      dangers.push({ x, y, r: rand(6, 11), shape: DSHAPES[(Math.random() * DSHAPES.length) | 0], rot: rand(0, Math.PI) });
+      if (Math.hypot(x, y) < clearR || !inBounds(x, y)) continue;
+      dangers.push({ x, y, r: rand(dRad * 0.6, dRad), shape: DSHAPES[(Math.random() * DSHAPES.length) | 0], rot: rand(0, Math.PI) });
+      i++;
     }
   }
 
