@@ -641,6 +641,9 @@
   const mapSpeed = () => clamp(mapFrac(), 0.55, 1);                 // السرعة تتناسب مع الساحة (بحدّ أدنى)
   function powerupTarget() { return clamp(Math.round(CONFIG.POWERUP_COUNT * mapFrac()), 1, CONFIG.POWERUP_COUNT); }
   function maintainPowerups() { let add = powerupTarget() - powerups.length; while (add-- > 0 && powerups.length < 30) powerups.push(spawnPowerup()); }
+  // المغناطيس يتناسب مع الساحة: مداه نسبة ثابتة من حجمها، وقوة سحبه ∝ السرعة
+  const magnetRange = () => clamp(CONFIG.WORLD * CONFIG.MAGNET_RANGE / CONFIG.WORLD_MAX, 4, CONFIG.MAGNET_RANGE);
+  const magnetPull = () => CONFIG.MAGNET_PULL * mapSpeed();
 
   // =====================================================================
   // الأكل + الدمج + القوى + القطع
@@ -823,7 +826,7 @@
   function drawBoostJet() { const t = tailOf(snake); drawJetAt(t.x, t.y, snake.angle, sizeForValue(headValue()), snake.speedTimer > 0); }
   // هالة المغناطيس (حلقة نابضة على الأرض)
   function drawMagnetRing(wx, wy) {
-    const pulse = 0.5 + 0.5 * Math.sin(now * 5), rW = CONFIG.MAGNET_RANGE * (0.62 + 0.38 * pulse);
+    const pulse = 0.5 + 0.5 * Math.sin(now * 5), rW = magnetRange() * (0.62 + 0.38 * pulse);
     ctx.save();
     ctx.strokeStyle = `rgba(176,107,255,${0.22 + 0.22 * pulse})`; ctx.lineWidth = 2.2;
     ctx.shadowColor = "rgba(176,107,255,0.6)"; ctx.shadowBlur = 8;
@@ -1204,7 +1207,8 @@
     if (snake.radarTimer > 0) snake.radarTimer = Math.max(0, snake.radarTimer - dt);
     if (snake.magnetTimer > 0) {
       snake.magnetTimer = Math.max(0, snake.magnetTimer - dt);
-      for (const f of foods) { const dx = snake.x - f.x, dy = snake.y - f.y, d = Math.hypot(dx, dy); if (d < CONFIG.MAGNET_RANGE && d > 0.1) { const pull = Math.min(CONFIG.MAGNET_PULL * dt, d); f.x += dx / d * pull; f.y += dy / d * pull; } }
+      const mr = magnetRange(), mp = magnetPull();
+      for (const f of foods) { const dx = snake.x - f.x, dy = snake.y - f.y, d = Math.hypot(dx, dy); if (d < mr && d > 0.1) { const pull = Math.min(mp * dt, d); f.x += dx / d * pull; f.y += dy / d * pull; } }
     }
     if (authority()) updateDangerProjectiles(dt); // المضيف يحرّك مناطق الخطر المتقدّمة
 
@@ -1459,7 +1463,7 @@
     if (bot.boost && bot.stamina > 0.02) bot.stamina = Math.max(0, bot.stamina - CONFIG.BOOST_DRAIN * dt); else bot.stamina = Math.min(1, bot.stamina + CONFIG.BOOST_REFILL * dt);
     if (bot.speedTimer > 0) bot.speedTimer = Math.max(0, bot.speedTimer - dt);
     if (bot.radarTimer > 0) bot.radarTimer = Math.max(0, bot.radarTimer - dt);
-    if (bot.magnetTimer > 0) { bot.magnetTimer = Math.max(0, bot.magnetTimer - dt); for (const f of foods) { const dx = bot.x - f.x, dy = bot.y - f.y, d = Math.hypot(dx, dy); if (d < CONFIG.MAGNET_RANGE && d > 0.1) { const pull = Math.min(CONFIG.MAGNET_PULL * dt, d); f.x += dx / d * pull; f.y += dy / d * pull; } } }
+    if (bot.magnetTimer > 0) { bot.magnetTimer = Math.max(0, bot.magnetTimer - dt); const mr = magnetRange(), mp = magnetPull(); for (const f of foods) { const dx = bot.x - f.x, dy = bot.y - f.y, d = Math.hypot(dx, dy); if (d < mr && d > 0.1) { const pull = Math.min(mp * dt, d); f.x += dx / d * pull; f.y += dy / d * pull; } } }
     const boosting = bot.boost && bot.stamina > 0.02, sp = CONFIG.SPEED * (bot.speedTimer > 0 ? CONFIG.SPEEDCUBE_MULT : 1) * (boosting ? CONFIG.BOOST_MULT : 1) * mapSpeed();
     bot.x += Math.cos(bot.angle) * sp * dt; bot.y += Math.sin(bot.angle) * sp * dt;
     if (!inBounds(bot.x, bot.y)) { killBot(bot); return; }
