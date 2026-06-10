@@ -12,7 +12,7 @@
   // إعدادات
   // =====================================================================
   const CONFIG = {
-    WORLD: 95, SCALE: 26, ISO_X: 1.0, ISO_Y: 0.5,
+    WORLD: 95, WORLD_MIN: 14, WORLD_MAX: 95, WORLD_STEP: 4, SCALE: 26, ISO_X: 1.0, ISO_Y: 0.5,
     BASE_SIZE: 1.0, SIZE_GROWTH: 0.045, CUBE_H: 0.62,
     SEG_GAP: 1.18, SPEED: 8.5, TURN_RATE: 6.8,  // >1 = فجوة صغيرة بين المكعبات (خلف بعضها لا فوقها)
 
@@ -613,10 +613,21 @@
 
   function initItems() {
     genMap();
-    const foodN = Math.max(35, CONFIG.FOOD_COUNT - (gameLevel - 1) * 12); // طعام أقل كل مرحلة
     foods = []; powerups = [];
-    for (let i = 0; i < foodN; i++) foods.push(spawnFood());
+    for (let i = 0; i < foodTarget(); i++) foods.push(spawnFood());
     for (let i = 0; i < CONFIG.POWERUP_COUNT; i++) powerups.push(spawnPowerup());
+  }
+  // حجم الساحة ديناميكي: صغير منفرداً ويكبر مع عدد الكائنات (لا ينكمش خلال اللعبة)
+  const entityCount = () => 1 + bots.size + remotes.size;
+  function foodTarget() { return clamp(Math.round(CONFIG.FOOD_COUNT * Math.pow(CONFIG.WORLD / CONFIG.WORLD_MAX, 2)), 14, CONFIG.FOOD_COUNT); }
+  function updateWorldSize(dt) {
+    const target = clamp(CONFIG.WORLD_MIN + CONFIG.WORLD_STEP * (entityCount() - 1), CONFIG.WORLD_MIN, CONFIG.WORLD_MAX);
+    if (target > CONFIG.WORLD) CONFIG.WORLD = Math.min(target, CONFIG.WORLD + 8 * dt); // نمو سلس
+  }
+  function maintainFood() {
+    let reg = 0; for (const f of foods) if (!f.loose) reg++;
+    let add = foodTarget() - reg;
+    while (add-- > 0 && foods.length < 240) foods.push(spawnFood());
   }
 
   // =====================================================================
@@ -975,7 +986,7 @@
     try { localStorage.setItem("snake2048_name", playerName); } catch (e) {}
     online = mode !== "solo"; isHost = mode === "host"; migrating = false;
     if (mode !== "host") hideRoomCodeHud(); // الرمز يظهر للمضيف الخاص فقط
-    gameLevel = 1; mapRotation = 0;
+    gameLevel = 1; mapRotation = 0; CONFIG.WORLD = CONFIG.WORLD_MIN; // الساحة تبدأ صغيرة وتكبر مع العدد
     medal.level = 0; medal.leaderId = null; medal.reign = 0; medal.leaderName = "";
     particles = []; floatEmojis = []; rings = []; flash = 0; debris = []; playTime = 0; maxReign = 0; killFeed = []; remotes.clear(); resetBots();
     resetSnake();
@@ -1495,6 +1506,7 @@
     } else { playerReign = 0; } // فقدان الصدارة يصفّر العدّاد (يبدأ 6 دقائق جديدة عند العودة)
   }
   function manageBots(dt) {
+    updateWorldSize(dt); maintainFood(); // الساحة تكبر مع العدد + ملء الطعام حسب المساحة
     if (!aiEnabled) { if (bots.size) bots.clear(); return; }
     let target;
     if (online) target = Math.max(0, 20 - (1 + clientConns.size));
@@ -1666,8 +1678,7 @@
   // خريطة مصغّرة: بنفس إسقاط الأرضية (إيزومتري/ماس) وشكلها، وحجمها يكبر مع عدد اللاعبين/البوتات.
   function drawMinimap() {
     const base = Math.min(W, H), R = CONFIG.WORLD;
-    const count = 1 + bots.size + remotes.size;                       // اللاعب + البوتات + البعيدون
-    const S = clamp(base * 0.045 + base * 0.016 * (count - 1), base * 0.045, base * 0.26); // صغيرة جداً منفرداً وتكبر مع كل كائن
+    const S = base * 0.18;                                            // حجم ثابت معقول (الساحة نفسها هي التي تكبر)
     const ms = S / (4 * R * CONFIG.ISO_X), pad = 12;
     const cx = pad + S / 2, cy = H - pad - S * 0.25;                  // مركز الماس أسفل اليسار
     const mmx = (x, y) => cx + (x - y) * CONFIG.ISO_X * ms;           // نفس إسقاط project
@@ -2258,10 +2269,10 @@
   }
 
   // ---- رسائل ----
-  function worldMsg() { return { t: "world", mapShape, mapTri, obstacles, dangers, level: gameLevel, shape: blockShape }; }
+  function worldMsg() { return { t: "world", mapShape, mapTri, obstacles, dangers, level: gameLevel, shape: blockShape, world: +CONFIG.WORLD.toFixed(1) }; }
   function itemsMsg() {
     return {
-      t: "items",
+      t: "items", world: +CONFIG.WORLD.toFixed(1),
       foods: foods.map((f) => ({ id: f.id, x: +f.x.toFixed(2), y: +f.y.toFixed(2), value: f.value })),
       powerups: powerups.map((p) => ({ id: p.id, x: +p.x.toFixed(2), y: +p.y.toFixed(2), type: p.type })),
       dprojs: dangerProjectiles.map((p) => ({ x: +p.x.toFixed(1), y: +p.y.toFixed(1), r: p.r })),
@@ -2301,8 +2312,8 @@
   function handleClientMsg(msg) {
     switch (msg.t) {
       case "yourId": myId = msg.id; break; // المضيف المحلي يعطي العميل مُعرّفه (Nearby)
-      case "world": mapShape = msg.mapShape; mapTri = msg.mapTri; obstacles = msg.obstacles || []; dangers = msg.dangers || []; gameLevel = msg.level || 1; if (msg.shape) blockShape = msg.shape; document.getElementById("level").textContent = gameLevel; break;
-      case "items": foods = (msg.foods || []).map((f) => ({ id: f.id, x: f.x, y: f.y, value: f.value, size: sizeForValue(f.value), vx: 0, vy: 0 })); powerups = (msg.powerups || []).map((p) => ({ id: p.id, x: p.x, y: p.y, type: p.type, size: CONFIG.BASE_SIZE * 2.0 })); dangerProjectiles = (msg.dprojs || []).map((p) => ({ x: p.x, y: p.y, r: p.r, vx: 0, vy: 0, turn: 0, age: 0 })); break;
+      case "world": mapShape = msg.mapShape; mapTri = msg.mapTri; obstacles = msg.obstacles || []; dangers = msg.dangers || []; gameLevel = msg.level || 1; if (msg.shape) blockShape = msg.shape; if (msg.world) CONFIG.WORLD = msg.world; document.getElementById("level").textContent = gameLevel; break;
+      case "items": if (msg.world) CONFIG.WORLD = msg.world; foods = (msg.foods || []).map((f) => ({ id: f.id, x: f.x, y: f.y, value: f.value, size: sizeForValue(f.value), vx: 0, vy: 0 })); powerups = (msg.powerups || []).map((p) => ({ id: p.id, x: p.x, y: p.y, type: p.type, size: CONFIG.BASE_SIZE * 2.0 })); dangerProjectiles = (msg.dprojs || []).map((p) => ({ x: p.x, y: p.y, r: p.r, vx: 0, vy: 0, turn: 0, age: 0 })); break;
       case "snakes": applySnakes(msg.list || []); break;
       case "notify": notify(msg.text); break;
       case "emoji": { if (msg.id === myId) break; const r = remotes.get(msg.id); if (r) { r.emojiEm = msg.em; r.emojiLife = 2; } break; }
