@@ -111,12 +111,9 @@
         </label>
       </div>
 
-      <div class="toggle-row">
-        <span class="toggle-label">🔊 <span data-i18n="sound">الصوت</span></span>
-        <label class="toggle-switch">
-          <input type="checkbox" id="snd-toggle" onchange="toggleSound()" checked/>
-          <span class="slider"></span>
-        </label>
+      <div class="play-row">
+        <button id="settings-btn" class="ghost-btn" onclick="openSettings()">⚙️ <span data-i18n="settings">الإعدادات</span></button>
+        <button id="profile-btn" class="ghost-btn" onclick="openProfile()">👤 <span data-i18n="profile">ملفّي</span></button>
       </div>
 
       <!-- وضع منفرد / جماعي (أيقونات) -->
@@ -282,6 +279,30 @@
         </section>
       </div>
       <button class="main-btn" onclick="closeHelp()" data-i18n="close">إغلاق</button>
+    </div>
+  </div>
+
+  <!-- ===== شاشة ملفّ اللاعب ===== -->
+  <div id="profile-screen" class="overlay hidden">
+    <div class="panel">
+      <button class="close-x" onclick="closeProfile()" aria-label="close">✕</button>
+      <h1 data-i18n="profile">ملفّي</h1>
+      <div id="profile-stats" class="profile-stats"></div>
+      <h3 class="ach-head" data-i18n="achievements">الإنجازات</h3>
+      <div id="profile-ach" class="ach-grid"></div>
+      <button class="main-btn" onclick="closeProfile()" data-i18n="close">إغلاق</button>
+    </div>
+  </div>
+
+  <!-- ===== شاشة الإعدادات ===== -->
+  <div id="settings-screen" class="overlay hidden">
+    <div class="panel">
+      <button class="close-x" onclick="closeSettings()" aria-label="close">✕</button>
+      <h1 data-i18n="settings">الإعدادات</h1>
+      <div class="toggle-row"><span class="toggle-label">🔊 <span data-i18n="sound">الصوت</span></span><label class="toggle-switch"><input type="checkbox" id="set-sound" onchange="toggleSound()" checked/><span class="slider"></span></label></div>
+      <div class="toggle-row"><span class="toggle-label">📳 <span data-i18n="haptics">الاهتزاز</span></span><label class="toggle-switch"><input type="checkbox" id="set-haptics" onchange="toggleHaptics()" checked/><span class="slider"></span></label></div>
+      <div class="toggle-row"><span class="toggle-label">✨ <span data-i18n="quality">جودة عالية</span></span><label class="toggle-switch"><input type="checkbox" id="set-quality" onchange="toggleQuality()" checked/><span class="slider"></span></label></div>
+      <button class="main-btn" onclick="closeSettings()" data-i18n="close">إغلاق</button>
     </div>
   </div>
 

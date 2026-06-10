@@ -173,6 +173,18 @@ body::after {
 #pause-ai-row.hidden { display: none; }
 #local-lan.hidden { display: none; }
 .lan-title { font-family: var(--font-data); color: var(--neon-purple); font-size: 13px; text-align: center; margin: 0 0 8px; }
+/* ملفّ اللاعب والإنجازات */
+.profile-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 6px 0 14px; }
+.stat { background: rgba(0,212,255,0.06); border: 1px solid var(--border-neon); border-radius: var(--radius-sm); padding: 9px 4px; text-align: center; }
+.stat-ic { font-size: 18px; }
+.stat-val { font-family: var(--font-data); font-weight: 800; font-size: 16px; color: var(--neon-blue); }
+.stat-lb { font-size: 10px; color: var(--text-secondary); }
+.ach-head { margin: 8px 0 6px; font-size: 15px; }
+.ach-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-bottom: 14px; }
+.ach { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-sm); padding: 8px 3px; text-align: center; opacity: 0.4; filter: grayscale(1); }
+.ach.got { opacity: 1; filter: none; border-color: var(--neon-gold); box-shadow: 0 0 10px rgba(243,156,18,0.4); }
+.ach-ic { font-size: 22px; }
+.ach-nm { font-size: 9px; color: var(--text-secondary); line-height: 1.2; margin-top: 2px; }
 .power-btn {
   width: 44px; height: 44px; border-radius: var(--radius-sm); cursor: pointer;
   background: linear-gradient(160deg, rgba(155,89,182,0.35), rgba(155,89,182,0.1));

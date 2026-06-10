@@ -80,6 +80,14 @@
   const rand = (a, b) => a + Math.random() * (b - a);
   const sfx = (n) => { try { if (window.Sound) Sound.play(n); } catch (e) {} }; // مؤثّر صوتي آمن
   let wasBoosting = false; // لتشغيل صوت الاندفاع عند بدايته فقط
+  let hapticsOn = true; try { hapticsOn = localStorage.getItem("snake2048_haptics") !== "0"; } catch (e) {}
+  let lowGfx = false; try { lowGfx = localStorage.getItem("snake2048_lowgfx") === "1"; } catch (e) {}
+  const vibrate = (ms) => { try { if (hapticsOn && window.Sound) Sound.vibrate(ms); } catch (e) {} };
+  // إحصائيات اللاعب الدائمة + الإنجازات + شريط القتل
+  let maxReign = 0, killFeed = [];
+  let stats = { games: 0, kills: 0, playSec: 0, cups: 0, best: 0, reign: 0, ach: {} };
+  try { const s = JSON.parse(localStorage.getItem("snake2048_stats")); if (s) stats = Object.assign(stats, s); } catch (e) {}
+  function saveStats() { try { localStorage.setItem("snake2048_stats", JSON.stringify(stats)); } catch (e) {} }
   function normAngle(d) { // تطبيع زاوية إلى [-π,π] بأمان (يتحمّل Infinity/NaN ولا يدور أبداً)
     if (!isFinite(d)) return 0;
     d = d % (2 * Math.PI);
@@ -675,6 +683,7 @@
   // =====================================================================
   let particles = [];
   function spawnBurst(x, y, color, n) {
+    if (lowGfx) n = Math.max(2, Math.round(n * 0.4)); // جودة منخفضة = جسيمات أقل
     if (particles.length > 700) return; // سقف أمان: انفجار ضخم لا يُغرق المصفوف
     for (let i = 0; i < n; i++) {
       const a = rand(0, Math.PI * 2), s = rand(8, 26);
@@ -968,7 +977,7 @@
     if (mode !== "host") hideRoomCodeHud(); // الرمز يظهر للمضيف الخاص فقط
     gameLevel = 1; mapRotation = 0;
     medal.level = 0; medal.leaderId = null; medal.reign = 0; medal.leaderName = "";
-    particles = []; floatEmojis = []; rings = []; flash = 0; debris = []; playTime = 0; remotes.clear(); resetBots();
+    particles = []; floatEmojis = []; rings = []; flash = 0; debris = []; playTime = 0; maxReign = 0; killFeed = []; remotes.clear(); resetBots();
     resetSnake();
     if (online) { // موضع انطلاق عشوائي لتفادي التراكب
       const a = rand(0, Math.PI * 2), d = rand(0, CONFIG.WORLD * 0.5);
@@ -998,7 +1007,7 @@
     deathBest = headValue() || 0; deathScore = score();
     if (deathBest > highScore) { highScore = deathBest; try { localStorage.setItem("snake2048_high", String(highScore)); } catch (e) {} }
     if (online) netSend({ t: "dead" });
-    sfx("death"); try { if (window.Sound) Sound.vibrate(140); } catch (e) {}
+    sfx("death"); vibrate(140);
     spawnDeathFx();
     state = "dying"; deathTimer = 0.62; // القطع تتطاير ثم تختفي فجأة ثم تظهر شاشة الخسارة
     document.getElementById("chat-bar").classList.add("hidden");
@@ -1007,6 +1016,7 @@
   }
   function finalizeOver() {
     state = "over";
+    recordGameEnd(false);
     document.getElementById("final-best").textContent = fmtNum(deathBest);
     document.getElementById("final-score").textContent = fmtNum(deathScore);
     document.getElementById("over-screen").classList.remove("hidden");
@@ -1072,6 +1082,7 @@
   function winGame(winner, winnerId) {
     if (state !== "playing") return;
     state = "won"; sfx("win");
+    recordGameEnd(!online || winnerId === myId);
     if (!online || winnerId === myId) { prizeCharges = 3; savePrize(); } // الجائزة للفائز فقط، وتبقى محفوظة
     if (headValue() > highScore) { highScore = headValue(); try { localStorage.setItem("snake2048_high", String(highScore)); } catch (e) {} }
     document.getElementById("win-name").textContent = winner;
@@ -1261,7 +1272,7 @@
       if (lastNetSend >= 0.05) { lastNetSend = 0; netTick(); }
     }
 
-    updateParticles(dt); updateEmojis(dt); updateRings(dt); updateDebris(dt);
+    updateParticles(dt); updateEmojis(dt); updateRings(dt); updateDebris(dt); updateKillFeed(dt);
     updateCamera(snake.x, snake.y); updateHUD();
   }
 
@@ -1303,7 +1314,9 @@
       if (r.biteCD > 0) return;
       r.biteCD = 0.4; eatValue(v); spawnEatFx(snake.x, snake.y); netSend({ t: "cut", target: r.id, index: k });
     }
+    if (k === 0) onKill(r._bot ? r._bot.name : (r.name || "?")); // أكل الرأس = قتلة
   }
+  function onKill(name) { stats.kills++; addKill(name); vibrate(25); }
 
   // وصلني عضّ: المهاجم أكل المكعب index، وما بعده (index+1..) يسقط طعاماً، وأحتفظ بـ 0..index-1
   function applyCut(index) {
@@ -1467,6 +1480,7 @@
     const leader = computeLeader();
     if (leader.id === myId && state === "playing") {
       playerReign += dt;
+      if (playerReign > maxReign) maxReign = playerReign;
       // 6 دقائق من الصدارة المتواصلة → يظهر منافس أقوى، وكل مرّة أقوى من سابقتها
       if (playerReign >= 360) {
         playerReign = 0; challengeWave++;
@@ -1626,7 +1640,41 @@
     drawArrow(); drawNameLabel(); drawEmojis();
     if (snake.radarTimer > 0) { drawRadar(); drawPowerupRadar(); }
     if (snake.magnetTimer > 0) drawEffectTimer("🧲", snake.magnetTimer, "#c79bff", snake.radarTimer > 0 ? 1 : 0);
+    if (state === "playing") drawMinimap();
+    drawKillFeed();
     drawFlash();
+    ctx.restore();
+  }
+  // شريط القتل: يظهر من أكلتَ رأسه
+  function addKill(name) { killFeed.unshift({ text: "🍴 " + name, life: 2.6 }); if (killFeed.length > 4) killFeed.pop(); }
+  function updateKillFeed(dt) { for (let i = killFeed.length - 1; i >= 0; i--) { killFeed[i].life -= dt; if (killFeed[i].life <= 0) killFeed.splice(i, 1); } }
+  function drawKillFeed() {
+    if (!killFeed.length) return;
+    ctx.save(); ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = '800 16px "Segoe UI", Tahoma, sans-serif';
+    let y = H * 0.2;
+    for (const k of killFeed) {
+      ctx.globalAlpha = clamp(k.life / 0.5, 0, 1);
+      ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,0.6)"; ctx.strokeText(k.text, W / 2, y);
+      ctx.fillStyle = "#ffd23f"; ctx.fillText(k.text, W / 2, y); y += 26;
+    }
+    ctx.restore();
+  }
+  // خريطة مصغّرة: حدود العالم + موقعك + القوى + الخطر + الأعداء القريبين (أو الكل عند الرادار)
+  function drawMinimap() {
+    const S = Math.min(W, H) * 0.2, pad = 12, x0 = pad, y0 = H - S - pad, R = CONFIG.WORLD;
+    const mx = (v) => x0 + (v + R) / (2 * R) * S, my = (v) => y0 + (v + R) / (2 * R) * S;
+    ctx.save();
+    ctx.globalAlpha = 0.82; ctx.fillStyle = "rgba(6,16,30,0.7)"; ctx.fillRect(x0, y0, S, S);
+    ctx.strokeStyle = "rgba(0,212,255,0.4)"; ctx.lineWidth = 1.5; ctx.strokeRect(x0, y0, S, S);
+    ctx.fillStyle = "rgba(255,60,60,0.45)";
+    for (const d of dangers) ctx.fillRect(mx(d.x) - 2, my(d.y) - 2, 4, 4);
+    for (const p of powerups) { ctx.fillStyle = (POWERUPS[p.type] || {}).glow || "#9b5de5"; ctx.fillRect(mx(p.x) - 1.5, my(p.y) - 1.5, 3, 3); }
+    const showAll = snake.radarTimer > 0;
+    const near = (e) => showAll || Math.hypot(e.x - snake.x, e.y - snake.y) < 55;
+    ctx.fillStyle = "#ff3b3b";
+    for (const r of remotes.values()) if (r.x != null && near(r)) ctx.fillRect(mx(r.x) - 1.5, my(r.y) - 1.5, 3, 3);
+    for (const b of bots.values()) if (near(b)) ctx.fillRect(mx(b.x) - 1.5, my(b.y) - 1.5, 3, 3);
+    ctx.fillStyle = "#19d3ff"; ctx.beginPath(); ctx.arc(mx(snake.x), my(snake.y), 3, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
   function drawRemoteLabel(r) {
@@ -2250,7 +2298,7 @@
     try { // درع أمان: خطأ عابر لا يجمّد اللعبة نهائياً
       if (state === "playing") update(dt);
       else {
-        updateParticles(dt); updateEmojis(dt); updateRings(dt); updateDebris(dt);
+        updateParticles(dt); updateEmojis(dt); updateRings(dt); updateDebris(dt); updateKillFeed(dt);
         if (state === "dying") { deathTimer -= dt; if (deathTimer <= 0) finalizeOver(); }
         if (state === "won") fireworksTick(dt); // ألعاب نارية
         // المضيف ما زال داخل الغرفة (موقوف مؤقتاً/ميت): يُبقي العالم حياً ويوزّعه فلا يتجمّد العملاء
@@ -2317,14 +2365,71 @@
   }
   updateShapeUI();
 
-  // كتم/تشغيل الصوت (يزامن مفتاحَي المنيو والإيقاف المؤقت)
+  // ===== الإعدادات: صوت + اهتزاز + جودة =====
+  window.openSettings = function () { document.getElementById("settings-screen").classList.remove("hidden"); };
+  window.closeSettings = function () { document.getElementById("settings-screen").classList.add("hidden"); };
+  function setChecked(id, v) { const e = document.getElementById(id); if (e) e.checked = v; }
+  // كتم/تشغيل الصوت (يزامن كل مفاتيح الصوت)
   window.toggleSound = function () {
     if (!window.Sound) return;
-    const m = Sound.toggleMute(), on = !m;
-    const a = document.getElementById("snd-toggle"); if (a) a.checked = on;
-    const b = document.getElementById("pause-snd-toggle"); if (b) b.checked = on;
+    const on = !Sound.toggleMute();
+    setChecked("set-sound", on); setChecked("pause-snd-toggle", on);
   };
-  try { const on = !(window.Sound && Sound.isMuted()); const a = document.getElementById("snd-toggle"); if (a) a.checked = on; const b = document.getElementById("pause-snd-toggle"); if (b) b.checked = on; } catch (e) {}
+  window.toggleHaptics = function () {
+    const cb = document.getElementById("set-haptics"); hapticsOn = cb ? cb.checked : !hapticsOn;
+    try { localStorage.setItem("snake2048_haptics", hapticsOn ? "1" : "0"); } catch (e) {}
+    if (hapticsOn) vibrate(30);
+  };
+  window.toggleQuality = function () {
+    const cb = document.getElementById("set-quality"); lowGfx = cb ? !cb.checked : !lowGfx;
+    try { localStorage.setItem("snake2048_lowgfx", lowGfx ? "1" : "0"); } catch (e) {}
+    applyQuality();
+  };
+  function applyQuality() { try { const bg = document.getElementById("bg-stars"); if (bg) bg.style.display = lowGfx ? "none" : ""; } catch (e) {} }
+  // ضبط الحالة الأولية للمفاتيح
+  try {
+    setChecked("set-sound", !(window.Sound && Sound.isMuted()));
+    setChecked("pause-snd-toggle", !(window.Sound && Sound.isMuted()));
+    setChecked("set-haptics", hapticsOn);
+    setChecked("set-quality", !lowGfx);
+    applyQuality();
+  } catch (e) {}
+
+  // ===== الإنجازات + ملفّ اللاعب =====
+  const ACHIEVEMENTS = [
+    { id: "a2048", icon: "🔢", test: (s) => s.best >= 2048 },
+    { id: "giant", icon: "🟦", test: (s) => s.best >= 8192 },
+    { id: "kill10", icon: "⚔️", test: (s) => s.kills >= 10 },
+    { id: "kill50", icon: "🗡️", test: (s) => s.kills >= 50 },
+    { id: "play30", icon: "⏱️", test: (s) => s.playSec >= 1800 },
+    { id: "games50", icon: "🎮", test: (s) => s.games >= 50 },
+    { id: "king", icon: "👑", test: (s) => s.reign >= 360 },
+    { id: "cup", icon: "🏆", test: (s) => s.cups >= 1 },
+  ];
+  function checkAchievements() {
+    for (const a of ACHIEVEMENTS) if (!stats.ach[a.id] && a.test(stats)) { stats.ach[a.id] = 1; notify("🏅 " + t("ach_" + a.id)); sfx("win"); }
+    saveStats();
+  }
+  function recordGameEnd(won) {
+    stats.games++; stats.playSec += Math.round(playTime);
+    stats.best = Math.max(stats.best || 0, headValue() || 0, deathBest || 0, highScore || 0);
+    stats.reign = Math.max(stats.reign || 0, maxReign);
+    if (won) stats.cups++;
+    saveStats(); checkAchievements();
+  }
+  window.openProfile = function () {
+    const card = (ic, val, lb) => `<div class="stat"><div class="stat-ic">${ic}</div><div class="stat-val">${val}</div><div class="stat-lb">${lb}</div></div>`;
+    document.getElementById("profile-stats").innerHTML =
+      card("🔢", fmtNum(Math.max(stats.best || 0, highScore || 0)), t("stBest")) +
+      card("🎮", stats.games || 0, t("stGames")) +
+      card("⚔️", stats.kills || 0, t("stKills")) +
+      card("⏱️", Math.floor((stats.playSec || 0) / 60) + "m", t("stTime")) +
+      card("🏆", stats.cups || 0, t("stCups"));
+    document.getElementById("profile-ach").innerHTML = ACHIEVEMENTS.map((a) =>
+      `<div class="ach ${stats.ach[a.id] ? "got" : ""}"><div class="ach-ic">${a.icon}</div><div class="ach-nm">${t("ach_" + a.id)}</div></div>`).join("");
+    document.getElementById("profile-screen").classList.remove("hidden");
+  };
+  window.closeProfile = function () { document.getElementById("profile-screen").classList.add("hidden"); };
 
   buildPowers();
   if (isNativeApp) { try { document.getElementById("local-lan").classList.remove("hidden"); } catch (e) {} } // لعب محلي في التطبيق فقط
