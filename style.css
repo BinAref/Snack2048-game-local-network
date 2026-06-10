@@ -436,6 +436,10 @@ body::after {
 .lock-btn.open { border-color: var(--neon-green); box-shadow: var(--glow-green); }
 .lock-btn.locked { border-color: var(--neon-gold); background: rgba(243,156,18,0.12); box-shadow: var(--glow-gold); }
 .play-row { display: flex; gap: 8px; align-items: stretch; }
+.dl-row { display: flex; flex-direction: column; gap: 7px; width: 100%; margin-top: 2px; }
+.dl-btn { width: 100%; font-size: 12.5px; line-height: 1.35; padding: 9px 12px; text-align: center; white-space: normal; }
+#dl-android { border-color: var(--neon-green); }
+#dl-iphone { border-color: var(--text-secondary); }
 .play-row .main-btn { flex: 1; }
 
 /* ===== الأزرار الرئيسية ===== */

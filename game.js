@@ -1092,6 +1092,22 @@
   // =====================================================================
   // التحديث
   // =====================================================================
+  // تحريك الطعام المتحرّك وارتداده عن الحدود/الحواجز (المضيف فقط)
+  function moveFoods(dt) {
+    for (const f of foods) {
+      if (f.vx || f.vy) {
+        f.x += f.vx * dt; f.y += f.vy * dt;
+        if (!inBounds(f.x, f.y) || insideObstacle(f.x, f.y, f.size * 0.4)) { f.vx *= -1; f.vy *= -1; f.x += f.vx * dt * 2; f.y += f.vy * dt * 2; }
+      }
+    }
+  }
+  // المضيف يُبقي العالم حياً للعملاء حتى أثناء إيقافه المؤقت أو بعد موته (ما دام لم يخرج من الغرفة)
+  function hostKeepAlive(dt) {
+    playTime += dt;
+    updateDangerProjectiles(dt);
+    moveFoods(dt);
+    manageBots(dt); // البوتات تتحرّك وتتقاتل وتهاجم العملاء
+  }
   function update(dt) {
     playTime += dt;
     updateMedals(dt);
@@ -1180,15 +1196,7 @@
     }
 
     // طعام متحرك (المضيف فقط يحرّكه)
-    if (authority()) {
-      for (const f of foods) {
-        if (f.vx || f.vy) {
-          f.x += f.vx * dt; f.y += f.vy * dt;
-          // يرتدّ عن حدود الخريطة أو الحواجز
-          if (!inBounds(f.x, f.y) || insideObstacle(f.x, f.y, f.size * 0.4)) { f.vx *= -1; f.vy *= -1; f.x += f.vx * dt * 2; f.y += f.vy * dt * 2; }
-        }
-      }
-    }
+    if (authority()) moveFoods(dt);
 
     const hv = headValue(), hSize = sizeForValue(hv);
     for (let i = foods.length - 1; i >= 0; i--) {
@@ -1441,6 +1449,19 @@
     try { localStorage.setItem("snake2048_ai", aiEnabled ? "1" : "0"); } catch (e) {}
     if (!aiEnabled) bots.clear();
   };
+  // تحكّم أثناء اللعب (المدير): إزالة/إعادة الذكاء الاصطناعي حتى بعد بدء اللعبة
+  window.togglePauseAI = function () {
+    aiEnabled = !aiEnabled;
+    try { localStorage.setItem("snake2048_ai", aiEnabled ? "1" : "0"); } catch (e) {}
+    if (!aiEnabled) bots.clear(); // إزالة فورية لكل البوتات
+    const cb = document.getElementById("ai-toggle"); if (cb) cb.checked = aiEnabled;
+    updatePauseAIBtn();
+  };
+  function updatePauseAIBtn() {
+    const b = document.getElementById("pause-ai-btn"); if (!b) return;
+    b.classList.toggle("hidden", online && !isHost); // المضيف/الفردي فقط يملك البوتات
+    b.textContent = (aiEnabled ? "🚫 " : "➕ ") + t("aiEnemies");
+  }
 
   // =====================================================================
   // الرسم
@@ -2003,6 +2024,7 @@
     document.getElementById("pause-screen").classList.remove("hidden");
     document.getElementById("chat-bar").classList.add("hidden");
     document.body.classList.remove("in-game");
+    updatePauseAIBtn();
     syncPowers();
   }
   window.resumeGame = function () {
@@ -2119,8 +2141,11 @@
         updateParticles(dt); updateEmojis(dt); updateRings(dt); updateDebris(dt);
         if (state === "dying") { deathTimer -= dt; if (deathTimer <= 0) finalizeOver(); }
         if (state === "won") fireworksTick(dt); // ألعاب نارية
-        // المضيف يواصل توزيع العالم حتى لو مات ثعبانه حتى لا يتجمّد العملاء
-        if (isHost && online) { lastNetSend += dt; if (lastNetSend >= 0.05) { lastNetSend = 0; hostBroadcast(snakesMsg()); if ((++netItemsCounter) % 4 === 0) hostBroadcast(itemsMsg()); } }
+        // المضيف ما زال داخل الغرفة (موقوف مؤقتاً/ميت): يُبقي العالم حياً ويوزّعه فلا يتجمّد العملاء
+        if (isHost && online) {
+          hostKeepAlive(dt);
+          lastNetSend += dt; if (lastNetSend >= 0.05) { lastNetSend = 0; hostBroadcast(snakesMsg()); if ((++netItemsCounter) % 4 === 0) hostBroadcast(itemsMsg()); }
+        }
       }
       if (state !== "menu") render();
     } catch (e) { console.error(e); }
@@ -2135,13 +2160,20 @@
 
   // تثبيت التطبيق (PWA)
   let deferredPrompt = null;
-  addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferredPrompt = e; document.getElementById("install-btn").classList.remove("hidden"); });
+  addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferredPrompt = e; });
   window.installApp = function () {
     if (!deferredPrompt) { notify(t("installHint")); return; }
     deferredPrompt.prompt();
-    deferredPrompt.userChoice.finally(() => { deferredPrompt = null; document.getElementById("install-btn").classList.add("hidden"); });
+    deferredPrompt.userChoice.finally(() => { deferredPrompt = null; });
   };
-  addEventListener("appinstalled", () => document.getElementById("install-btn").classList.add("hidden"));
+  addEventListener("appinstalled", () => { deferredPrompt = null; });
+  // تطبيق أندرويد (APK): يتيح اللعب المحلي بلا إنترنت. يُضبط الرابط بعد بناء التطبيق ورفعه على GitHub Releases.
+  const APK_URL = "";
+  window.downloadAndroid = function () {
+    if (APK_URL) window.open(APK_URL, "_blank");
+    else { notify(t("apkSoon")); installApp(); } // مؤقتاً: نسخة الأوفلاين قريباً + إتاحة تثبيت PWA الآن
+  };
+  window.downloadIphone = function () { installApp(); }; // آيفون = PWA
 
   // التعليمات
   window.openHelp = function () { document.getElementById("help-screen").classList.remove("hidden"); };

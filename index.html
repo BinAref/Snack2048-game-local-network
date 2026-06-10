@@ -87,7 +87,10 @@
       </div>
 
       <input id="name-input" type="text" maxlength="14" autocomplete="off"/>
-      <button id="install-btn" class="ghost-btn hidden" onclick="installApp()" data-i18n="install">📲 ثبّت التطبيق</button>
+      <div class="dl-row">
+        <button id="dl-android" class="ghost-btn dl-btn" onclick="downloadAndroid()" data-i18n="dlAndroid">🤖 Android</button>
+        <button id="dl-iphone" class="ghost-btn dl-btn" onclick="downloadIphone()" data-i18n="dlIphone">🍎 iPhone</button>
+      </div>
 
       <div id="shape-dd">
         <span class="shape-label" data-i18n="shape">الشكل</span>
@@ -246,6 +249,7 @@
       <h1 data-i18n="paused">إيقاف مؤقت</h1>
       <div class="pause-actions">
         <button class="main-btn" onclick="resumeGame()" data-i18n="resume">استئناف</button>
+        <button id="pause-ai-btn" class="ghost-btn" onclick="togglePauseAI()">🚫 AI</button>
         <button class="ghost-btn" onclick="exitToMenu()" data-i18n="exit">الخروج للقائمة</button>
       </div>
     </div>
