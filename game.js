@@ -565,18 +565,13 @@
     return list[0][key];
   }
 
-  function genMap() {
-    // اختر النمط بالتناوب حسب المستوى
-    mapShape = MAP_PATTERNS[(gameLevel - 1 + mapRotation) % MAP_PATTERNS.length];
+  // توليد الحواجز (يتناسب مع حجم الساحة)
+  function genObstacles() {
     const R = CONFIG.WORLD;
-    if (mapShape === "triangle")
-      mapTri = [0, 1, 2].map((i) => { const a = -Math.PI / 2 + i * (Math.PI * 2 / 3); return { x: Math.cos(a) * R * 1.3, y: Math.sin(a) * R * 1.3 }; });
-
-    obstacles = []; dangers = [];
-    const ss = clamp(R / CONFIG.WORLD_MAX, 0.4, 1); // مقياس أحجام الحواجز حسب الساحة
-    const clearO = Math.min(18, R * 0.5);           // مركز نظيف نسبةً للساحة
+    obstacles = [];
+    const ss = clamp(R / CONFIG.WORLD_MAX, 0.4, 1);   // مقياس أحجام الحواجز
+    const clearO = Math.min(18, R * 0.5);             // مركز نظيف نسبةً للساحة
     if (mapShape === "maze") {
-      // متاهة: شبكة جدران غير قاتلة
       const cells = 6, gap = (R * 1.5) / cells;
       for (let i = -cells; i <= cells; i++)
         for (let j = -cells; j <= cells; j++) {
@@ -587,7 +582,7 @@
           }
         }
     } else {
-      const count = clamp(Math.round((5 + Math.random() * 5) * mapFrac()), 0, 12); // عدد الحواجز ∝ الساحة
+      const count = clamp(Math.round((5 + Math.random() * 5) * mapFrac()), 0, 12);
       const KINDS = ["box", "cyl", "hex"];
       let tries = 0;
       while (obstacles.length < count && tries < 300) {
@@ -597,18 +592,20 @@
         const kind = KINDS[(Math.random() * KINDS.length) | 0];
         let hw, hh;
         if (kind === "box") { const longish = Math.random() < 0.5, a = rand(3, 9) * ss, b = rand(3, 9) * ss; hw = longish ? a * 1.6 : a; hh = longish ? b : b * 1.6; }
-        else { hw = hh = rand(4, 7) * ss; } // أعمدة دائرية/سداسية مربعة القاعدة
+        else { hw = hh = rand(4, 7) * ss; }
         let ok = true;
         for (const o of obstacles) if (Math.abs(o.x - x) < o.hw + hw + 4 && Math.abs(o.y - y) < o.hh + hh + 4) { ok = false; break; }
         if (ok) obstacles.push({ x, y, hw, hh, h: 5.0, color: "#3a4a66", kind });
       }
     }
-    // مناطق خطر (عددها ∝ الساحة والمستوى، وأحجامها ∝ الساحة)
-    dangerProjectiles = []; dprojTimer = 0;
+  }
+  // توليد مناطق الخطر (عددها ∝ الساحة×المستوى، أحجامها ∝ الساحة)
+  function genDangers() {
+    const R = CONFIG.WORLD;
+    dangers = []; dangerProjectiles = []; dprojTimer = 0;
     const DSHAPES = ["circle", "square", "triangle"];
     const dz = clamp(Math.round((3 + gameLevel) * mapFrac()), 1, 12);
-    const clearR = Math.min(20, R * 0.55); // ابقِ مركزاً نظيفاً نسبةً لحجم الساحة (يمنع التعليق في الساحات الصغيرة)
-    const dRad = clamp(R * 0.1, 3, 11);     // نصف قطر الخطر يتناسب مع الساحة
+    const clearR = Math.min(20, R * 0.55), dRad = clamp(R * 0.1, 3, 11);
     let dtries = 0;
     for (let i = 0; i < dz && dtries < 400; dtries++) {
       const x = rand(-R * 0.85, R * 0.85), y = rand(-R * 0.85, R * 0.85);
@@ -616,6 +613,22 @@
       dangers.push({ x, y, r: rand(dRad * 0.6, dRad), shape: DSHAPES[(Math.random() * DSHAPES.length) | 0], rot: rand(0, Math.PI) });
       i++;
     }
+  }
+  let obsRelocTimer = 0, dzRelocTimer = 0;
+  function genMap() {
+    mapShape = MAP_PATTERNS[(gameLevel - 1 + mapRotation) % MAP_PATTERNS.length];
+    const R = CONFIG.WORLD;
+    if (mapShape === "triangle")
+      mapTri = [0, 1, 2].map((i) => { const a = -Math.PI / 2 + i * (Math.PI * 2 / 3); return { x: Math.cos(a) * R * 1.3, y: Math.sin(a) * R * 1.3 }; });
+    genObstacles(); genDangers();
+    obsRelocTimer = 0; dzRelocTimer = 0;
+  }
+  // تغيّر دوري: مناطق الخطر كل 10ث (+5 مع كبر الساحة)، الحواجز كل 60ث (+120 مع كبر الساحة)
+  function relocateMap(dt) {
+    dzRelocTimer += dt;
+    if (dzRelocTimer >= 10 + 5 * mapFrac()) { dzRelocTimer = 0; genDangers(); if (online && isHost) hostBroadcast(worldMsg()); }
+    obsRelocTimer += dt;
+    if (obsRelocTimer >= 60 + 120 * mapFrac()) { obsRelocTimer = 0; genObstacles(); if (online && isHost) hostBroadcast(worldMsg()); }
   }
 
   function initItems() {
@@ -640,10 +653,15 @@
   const mapFrac = () => CONFIG.WORLD / CONFIG.WORLD_MAX;            // 0..1
   const mapSpeed = () => clamp(mapFrac(), 0.55, 1);                 // السرعة تتناسب مع الساحة (بحدّ أدنى)
   function powerupTarget() { return clamp(Math.round(CONFIG.POWERUP_COUNT * mapFrac()), 1, CONFIG.POWERUP_COUNT); }
-  function maintainPowerups() { let add = powerupTarget() - powerups.length; while (add-- > 0 && powerups.length < 30) powerups.push(spawnPowerup()); }
-  // عمر القوة قبل أن تنتقل لمكان آخر: 5 ثوانٍ + حتى 3 ثوانٍ كلما كبرت الساحة
+  // القوة تبقى 5 ثوانٍ (+ حتى 3 مع كبر الساحة) ثم تختفي، وتظهر جديدة بعد انتظار 2 ثانية (+ حتى 1 مع الساحة) — لا فوراً
   const powerupLifetime = () => 5 + 3 * mapFrac();
-  function updatePowerups() { for (let i = 0; i < powerups.length; i++) if (now > powerups[i].expire) powerups[i] = spawnPowerup(); } // لم يأخذها أحد → تنتقل
+  const powerupRespawn = () => 2 + mapFrac();
+  let puSpawnTimer = 0;
+  function managePowerups(dt) {
+    for (let i = powerups.length - 1; i >= 0; i--) if (now > powerups[i].expire) powerups.splice(i, 1); // غير مأخوذة → تختفي
+    if (powerups.length < powerupTarget()) { puSpawnTimer -= dt; if (puSpawnTimer <= 0) { powerups.push(spawnPowerup()); puSpawnTimer = powerupRespawn(); } }
+    else puSpawnTimer = powerupRespawn();
+  }
   // المغناطيس يتناسب مع الساحة: مداه نسبة ثابتة من حجمها، وقوة سحبه ∝ السرعة
   const magnetRange = () => clamp(CONFIG.WORLD * CONFIG.MAGNET_RANGE / CONFIG.WORLD_MAX, 4, CONFIG.MAGNET_RANGE);
   const magnetPull = () => CONFIG.MAGNET_PULL * mapSpeed();
@@ -652,7 +670,6 @@
   // الأكل + الدمج + القوى + القطع
   // =====================================================================
   function eatValue(v) {
-    sfx("eat");
     snake.values.push(v); snake.values.sort((a, b) => b - a);
     let merged = true;
     while (merged) {
@@ -667,8 +684,9 @@
       }
     }
   }
+  const powerSfx = (type) => sfx(type === "half" ? "bad" : type === "speed" ? "speedp" : type === "magnet" ? "magnet" : type === "radar" ? "radar" : "good");
   function applyPowerup(type) {
-    sfx("power");
+    powerSfx(type); // صوت يختلف حسب نوع القوة (نافعة/ضارّة/سرعة/مغناطيس/رادار)
     if (type === "speed") snake.speedTimer = CONFIG.SPEEDCUBE_TIME;
     else if (type === "radar") snake.radarTimer = CONFIG.RADAR_TIME;
     else if (type === "magnet") snake.magnetTimer = CONFIG.MAGNET_TIME;
@@ -1030,13 +1048,13 @@
     if (isHost) { hostBroadcast(worldMsg()); hostBroadcast(itemsMsg()); }
   }
   let deathTimer = 0, deathBest = 0, deathScore = 0;
-  function gameOver() {
+  function gameOver(byEnemy) {
     if (state !== "playing" && state !== "paused") return; // قد يُؤكَل وهو متوقّف مؤقتاً
     document.getElementById("pause-screen").classList.add("hidden");
     deathBest = headValue() || 0; deathScore = score();
     if (deathBest > highScore) { highScore = deathBest; try { localStorage.setItem("snake2048_high", String(highScore)); } catch (e) {} }
     if (online) netSend({ t: "dead" });
-    sfx("death"); vibrate(140);
+    sfx(byEnemy ? "eaten" : "death"); vibrate(140); // عدو أكلك ≠ موت بحاجز/خطر
     spawnDeathFx();
     state = "dying"; deathTimer = 0.62; // القطع تتطاير ثم تختفي فجأة ثم تظهر شاشة الخسارة
     document.getElementById("chat-bar").classList.add("hidden");
@@ -1125,7 +1143,7 @@
   }
   function useCharge() {
     if (snake.charges <= 0 || state !== "playing") return;
-    sfx("power");
+    sfx("good");
     snake.charges--; prizeCharges = snake.charges; savePrize(); // تُخصم من الجائزة المحفوظة عند الاستعمال فقط
     snake.values = snake.values.map((v) => v * 2);
     spawnBurst(snake.x, snake.y, "#37d67a", 18); updateCharges();
@@ -1152,7 +1170,7 @@
     { id: "magnet", icon: "🧲", key: "M", run: () => { snake.magnetTimer = CONFIG.MAGNET_TIME; } },
     // أضف أي ميزة مستقبلية هنا وتظهر له تلقائياً
   ];
-  function usePower(id) { if (state !== "playing" || !isBinAref()) return; const a = ABILITIES.find((x) => x.id === id); if (a) { sfx("power"); a.run(); } }
+  function usePower(id) { if (state !== "playing" || !isBinAref()) return; const a = ABILITIES.find((x) => x.id === id); if (a) { powerSfx(id); a.run(); } }
   function buildPowers() {
     const el = document.getElementById("powers"); el.innerHTML = "";
     for (const a of ABILITIES) {
@@ -1280,7 +1298,7 @@
       const f = foods[i];
       // يمكن الأكل داخل الخطر؛ لكن المكعب المقطوع للتو لا يُؤكل لمدة قصيرة (noEat)
       if (!(f.noEat && now < f.noEat) && Math.hypot(f.x - snake.x, f.y - snake.y) < (hSize + f.size) * 0.5 && f.value <= hv) {
-        eatValue(f.value); spawnEatFx(f.x, f.y);
+        eatValue(f.value); sfx("eat"); spawnEatFx(f.x, f.y);
         if (authority()) foods[i] = spawnFood();
         else { foods.splice(i, 1); netSend({ t: "eat", id: f.id }); }
       }
@@ -1290,7 +1308,7 @@
       if (Math.hypot(p.x - snake.x, p.y - snake.y) < (hSize + p.size) * 0.45) {
         spawnBurst(p.x, p.y, POWERUPS[p.type].glow, 12);
         applyPowerup(p.type);
-        if (authority()) powerups[i] = spawnPowerup();
+        if (authority()) powerups.splice(i, 1); // تختفي؛ تظهر جديدة بعد انتظار (managePowerups)
         else { powerups.splice(i, 1); netSend({ t: "eatpu", id: p.id }); }
         if (state !== "playing") return;
       }
@@ -1348,15 +1366,16 @@
       r.biteCD = 0.4; eatValue(v); spawnEatFx(snake.x, snake.y); netSend({ t: "cut", target: r.id, index: k });
     }
     if (k === 0) onKill(r._bot ? r._bot.name : (r.name || "?")); // أكل الرأس = قتلة
+    else sfx("eat"); // عضّ جسم العدو
   }
-  function onKill(name) { stats.kills++; addKill(name); vibrate(25); }
+  function onKill(name) { stats.kills++; addKill(name); sfx("kill"); vibrate(60); }
 
   // وصلني عضّ: المهاجم أكل المكعب index، وما بعده (index+1..) يسقط طعاماً، وأحتفظ بـ 0..index-1
   function applyCut(index) {
     if (state !== "playing" && state !== "paused") return;
     index = Math.floor(index);
     if (index >= snake.values.length) return; // فهرس قديم — تجاهل (يمنع NaN)
-    if (index <= 0) { gameOver(); return; } // أُكل الرأس → خسارة فوراً
+    if (index <= 0) { gameOver(true); return; } // أُكل الرأس → خسارة فوراً (عدو أكلك)
     const body = bodyPositions();
     const dropped = snake.values.slice(index + 1);
     for (let j = 0; j < dropped.length; j++) {
@@ -1540,7 +1559,7 @@
     } else { playerReign = 0; } // فقدان الصدارة يصفّر العدّاد (يبدأ 6 دقائق جديدة عند العودة)
   }
   function manageBots(dt) {
-    updateWorldSize(dt); maintainFood(); maintainPowerups(); updatePowerups(); // الساحة + ملء الطعام/القوى + نقل القوى غير المأخوذة
+    updateWorldSize(dt); maintainFood(); managePowerups(dt); relocateMap(dt); // الساحة + الطعام + القوى (بانتظار) + تغيّر الخطر والحواجز
     if (!aiEnabled) { if (bots.size) bots.clear(); return; }
     let target;
     if (online) target = Math.max(0, 20 - (1 + clientConns.size));
@@ -2247,7 +2266,7 @@
     hideRoomCodeHud(); document.body.classList.remove("in-game");
     hostLobby = false;
     if (localNet && Nearby) { try { Nearby.stop(); } catch (_) {} } localNet = false;
-    try { if (window.Sound) Sound.stopMusic(); } catch (e) {} // إيقاف الموسيقى في القائمة
+    try { if (window.Sound) Sound.startMenu(); } catch (e) {} // موسيقى المنيو
     try { if (peer) peer.destroy(); } catch (_) {}
     document.getElementById("start-screen").classList.remove("hidden");
     document.getElementById("chat-bar").classList.add("hidden");
@@ -2329,7 +2348,7 @@
       case "hello": { const r = remotes.get(fromId) || { id: fromId, color: colorForId(fromId) }; r.name = msg.name || r.name || "لاعب"; remotes.set(fromId, r); break; }
       case "state": { const r = remotes.get(fromId) || { id: fromId, color: colorForId(fromId) }; r.id = fromId; r.name = msg.name || r.name; r.x = msg.x; r.y = msg.y; r.angle = msg.angle; r.head = msg.head; r.boosting = msg.boosting; r.score = msg.score; r.body = msg.body; r.seen = now; remotes.set(fromId, r); break; }
       case "eat": { const i = foods.findIndex((f) => f.id === msg.id); if (i >= 0) foods[i] = spawnFood(); break; }
-      case "eatpu": { const i = powerups.findIndex((p) => p.id === msg.id); if (i >= 0) powerups[i] = spawnPowerup(); break; }
+      case "eatpu": { const i = powerups.findIndex((p) => p.id === msg.id); if (i >= 0) powerups.splice(i, 1); break; }
       case "drop": foods.push(looseFood(msg.x, msg.y, msg.v)); break;
       case "cut": {
         if (msg.target === myId) applyCut(msg.index);
@@ -2534,6 +2553,8 @@
   window.closeProfile = function () { document.getElementById("profile-screen").classList.add("hidden"); };
 
   buildPowers();
+  // موسيقى المنيو تبدأ عند أول تفاعل (سياسة المتصفّحات للصوت)
+  addEventListener("pointerdown", function startMenuOnce() { try { if (window.Sound && state === "menu") Sound.startMenu(); } catch (e) {} removeEventListener("pointerdown", startMenuOnce); }, { once: true });
   if (isNativeApp) { try { document.getElementById("local-lan").classList.remove("hidden"); } catch (e) {} } // لعب محلي في التطبيق فقط
   try { document.getElementById("ai-toggle").checked = aiEnabled; } catch (e) {}
   gameLevel = 1; resetSnake(); initItems(); updateCamera(0, 0);
