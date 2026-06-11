@@ -557,7 +557,7 @@
   }
   function spawnPowerup() {
     const p = freePos(2), t = weighted(POWERUP_WEIGHTS, "t");
-    return { id: nextItemId++, x: p.x, y: p.y, type: t, size: CONFIG.BASE_SIZE * 2.0 };
+    return { id: nextItemId++, x: p.x, y: p.y, type: t, size: CONFIG.BASE_SIZE * 2.0, expire: now + powerupLifetime() };
   }
   function weighted(list, key) {
     const total = list.reduce((s, e) => s + e.w, 0); let r = Math.random() * total;
@@ -641,6 +641,9 @@
   const mapSpeed = () => clamp(mapFrac(), 0.55, 1);                 // السرعة تتناسب مع الساحة (بحدّ أدنى)
   function powerupTarget() { return clamp(Math.round(CONFIG.POWERUP_COUNT * mapFrac()), 1, CONFIG.POWERUP_COUNT); }
   function maintainPowerups() { let add = powerupTarget() - powerups.length; while (add-- > 0 && powerups.length < 30) powerups.push(spawnPowerup()); }
+  // عمر القوة قبل أن تنتقل لمكان آخر: 5 ثوانٍ + حتى 3 ثوانٍ كلما كبرت الساحة
+  const powerupLifetime = () => 5 + 3 * mapFrac();
+  function updatePowerups() { for (let i = 0; i < powerups.length; i++) if (now > powerups[i].expire) powerups[i] = spawnPowerup(); } // لم يأخذها أحد → تنتقل
   // المغناطيس يتناسب مع الساحة: مداه نسبة ثابتة من حجمها، وقوة سحبه ∝ السرعة
   const magnetRange = () => clamp(CONFIG.WORLD * CONFIG.MAGNET_RANGE / CONFIG.WORLD_MAX, 4, CONFIG.MAGNET_RANGE);
   const magnetPull = () => CONFIG.MAGNET_PULL * mapSpeed();
@@ -1378,6 +1381,11 @@
 
   // مستوى الصعوبة الزمني: 0 سهل … 5 كابوس (كل 5 دقائق)
   const aiTier = () => clamp(Math.floor(playTime / 300), 0, 5);
+  // قدرة البوت ترتفع مع المستوى (الميداليات 0..6): أضعف من اللاعب في البداية، وتساويه عند آخر مستوى
+  const botAbility = () => clamp(medal.level / 6, 0, 1);
+  const botSpeedFrac = () => lerp(0.45, 1, botAbility());   // مدة قوة السرعة (أقصر للبوت)
+  const botStaminaFrac = () => lerp(0.4, 1, botAbility());  // سرعة تجدّد الطاقة (أبطأ للبوت)
+  const botDrainFrac = () => lerp(1.8, 1, botAbility());    // استهلاك الاندفاع (أسرع للبوت)
   function makeBot(opts) {
     opts = opts || {};
     const strength = opts.strength != null ? opts.strength : 0.4;
@@ -1407,7 +1415,7 @@
     let m = true; while (m) { m = false; for (let i = 0; i < bot.values.length - 1; i++) if (bot.values[i] === bot.values[i + 1]) { bot.values[i] *= 2; bot.values.splice(i + 1, 1); bot.values.sort((a, b) => b - a); m = true; break; } }
   }
   function applyBotPowerup(bot, type) {
-    if (type === "speed") bot.speedTimer = CONFIG.SPEEDCUBE_TIME;
+    if (type === "speed") bot.speedTimer = CONFIG.SPEEDCUBE_TIME * botSpeedFrac(); // مدة أقصر، تقترب من اللاعب مع المستوى
     else if (type === "radar") bot.radarTimer = CONFIG.RADAR_TIME;
     else if (type === "magnet") bot.magnetTimer = CONFIG.MAGNET_TIME;
     else if (type === "double") bot.values = bot.values.map((v) => v * 2);
@@ -1460,7 +1468,7 @@
   function stepBot(bot, dt) {
     bot.aiT -= dt; if (bot.aiT <= 0) { bot.aiT = bot.react; decideBot(bot); }
     bot.angle = angleLerp(bot.angle, bot.desiredAngle, CONFIG.TURN_RATE * dt);
-    if (bot.boost && bot.stamina > 0.02) bot.stamina = Math.max(0, bot.stamina - CONFIG.BOOST_DRAIN * dt); else bot.stamina = Math.min(1, bot.stamina + CONFIG.BOOST_REFILL * dt);
+    if (bot.boost && bot.stamina > 0.02) bot.stamina = Math.max(0, bot.stamina - CONFIG.BOOST_DRAIN * botDrainFrac() * dt); else bot.stamina = Math.min(1, bot.stamina + CONFIG.BOOST_REFILL * botStaminaFrac() * dt);
     if (bot.speedTimer > 0) bot.speedTimer = Math.max(0, bot.speedTimer - dt);
     if (bot.radarTimer > 0) bot.radarTimer = Math.max(0, bot.radarTimer - dt);
     if (bot.magnetTimer > 0) { bot.magnetTimer = Math.max(0, bot.magnetTimer - dt); const mr = magnetRange(), mp = magnetPull(); for (const f of foods) { const dx = bot.x - f.x, dy = bot.y - f.y, d = Math.hypot(dx, dy); if (d < mr && d > 0.1) { const pull = Math.min(mp * dt, d); f.x += dx / d * pull; f.y += dy / d * pull; } } }
@@ -1522,7 +1530,7 @@
     } else { playerReign = 0; } // فقدان الصدارة يصفّر العدّاد (يبدأ 6 دقائق جديدة عند العودة)
   }
   function manageBots(dt) {
-    updateWorldSize(dt); maintainFood(); maintainPowerups(); // الساحة تكبر مع العدد + ملء الطعام/القوى حسب المساحة
+    updateWorldSize(dt); maintainFood(); maintainPowerups(); updatePowerups(); // الساحة + ملء الطعام/القوى + نقل القوى غير المأخوذة
     if (!aiEnabled) { if (bots.size) bots.clear(); return; }
     let target;
     if (online) target = Math.max(0, 20 - (1 + clientConns.size));
