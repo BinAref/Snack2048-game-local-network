@@ -5,9 +5,10 @@
 (() => {
   "use strict";
   let ctx = null, master = null, sfxGain = null, musicGain = null;
-  let mEnabled = true, sEnabled = true; // موسيقى / مؤثّرات
-  try { mEnabled = localStorage.getItem("snake2048_music") !== "0"; } catch (e) {}
-  try { sEnabled = localStorage.getItem("snake2048_sfx") !== "0"; } catch (e) {}
+  let musicVol = 0.9, sfxVol = 0.9, mutedAll = false; // أحجام منفصلة + كتم رئيسي
+  try { const m = parseFloat(localStorage.getItem("snake2048_musicv")); if (!isNaN(m)) musicVol = m; } catch (e) {}
+  try { const s = parseFloat(localStorage.getItem("snake2048_sfxv")); if (!isNaN(s)) sfxVol = s; } catch (e) {}
+  try { mutedAll = localStorage.getItem("snake2048_mute") === "1"; } catch (e) {}
   let musicTimer = null, mi = 0, musicMode = null; // "game" | "menu" | null
 
   function ensure() {
@@ -16,18 +17,18 @@
     if (!AC) return null;
     try {
       ctx = new AC();
-      master = ctx.createGain(); master.gain.value = 1; master.connect(ctx.destination);
-      sfxGain = ctx.createGain(); sfxGain.gain.value = sEnabled ? 0.55 : 0; sfxGain.connect(master);
-      musicGain = ctx.createGain(); musicGain.gain.value = mEnabled ? 0.22 : 0; musicGain.connect(master);
+      master = ctx.createGain(); master.gain.value = mutedAll ? 0 : 1; master.connect(ctx.destination);
+      sfxGain = ctx.createGain(); sfxGain.gain.value = 0.6 * sfxVol; sfxGain.connect(master);
+      musicGain = ctx.createGain(); musicGain.gain.value = 0.24 * musicVol; musicGain.connect(master);
     } catch (e) { ctx = null; }
     return ctx;
   }
-  function applyGains() { if (sfxGain) sfxGain.gain.value = sEnabled ? 0.55 : 0; if (musicGain) musicGain.gain.value = mEnabled ? 0.22 : 0; }
+  function applyGains() { if (sfxGain) sfxGain.gain.value = 0.6 * sfxVol; if (musicGain) musicGain.gain.value = 0.24 * musicVol; }
   function resume() { try { if (ctx && ctx.state === "suspended") ctx.resume(); } catch (e) {} }
-  function persist() { try { localStorage.setItem("snake2048_music", mEnabled ? "1" : "0"); localStorage.setItem("snake2048_sfx", sEnabled ? "1" : "0"); } catch (e) {} }
+  function persist() { try { localStorage.setItem("snake2048_musicv", musicVol); localStorage.setItem("snake2048_sfxv", sfxVol); localStorage.setItem("snake2048_mute", mutedAll ? "1" : "0"); } catch (e) {} }
 
   function tone(freq, dur, type, gain, slideTo, delay, dest) {
-    if (!ensure() || !sEnabled) return;
+    if (!ensure() || sfxVol <= 0) return;
     const t0 = ctx.currentTime + (delay || 0);
     const o = ctx.createOscillator(), g = ctx.createGain();
     o.type = type || "sine"; o.frequency.setValueAtTime(freq, t0);
@@ -38,7 +39,7 @@
     o.connect(g); g.connect(dest || sfxGain); o.start(t0); o.stop(t0 + dur + 0.03);
   }
   function noise(dur, gain, hp) {
-    if (!ensure() || !sEnabled) return;
+    if (!ensure() || sfxVol <= 0) return;
     const t0 = ctx.currentTime, n = Math.floor(ctx.sampleRate * dur);
     const buf = ctx.createBuffer(1, n, ctx.sampleRate), d = buf.getChannelData(0);
     for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
@@ -58,6 +59,8 @@
     radar() { tone(900, 0.12, "sine", 0.07, 1120); },
     boost() { tone(170, 0.16, "sawtooth", 0.16, 440); },
     kill() { tone(180, 0.12, "square", 0.3, 90); noise(0.12, 0.2, 500); tone(470, 0.1, "triangle", 0.2, 700, 0.05); },
+    explosion() { tone(120, 0.4, "sawtooth", 0.34, 38); tone(70, 0.5, "sine", 0.28, 28, 0.02); noise(0.42, 0.38, 140); },
+    freeze() { [1300, 1050, 820, 640].forEach((f, i) => tone(f, 0.26, "sine", 0.14, f * 0.75, i * 0.05)); noise(0.18, 0.07, 2200); },
     eaten() { tone(300, 0.5, "sawtooth", 0.3, 48); noise(0.5, 0.3, 200); },
     death() { tone(420, 0.45, "sawtooth", 0.26, 70); noise(0.38, 0.2, 320); },
     win() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.3, "triangle", 0.26, null, i * 0.12)); },
@@ -69,7 +72,7 @@
   const GAME_NOTES = [220, 262, 330, 440, 330, 262, 196, 262];
   const MENU_NOTES = [196, 247, 294, 247, 220, 175, 220, 262];
   function musicStep() {
-    if (!musicMode || !mEnabled || !ensure()) return;
+    if (!musicMode || musicVol <= 0 || !ensure()) return;
     const menu = musicMode === "menu", notes = menu ? MENU_NOTES : GAME_NOTES;
     const t0 = ctx.currentTime, f = notes[mi % notes.length]; mi++;
     const o = ctx.createOscillator(), g = ctx.createGain();
@@ -97,7 +100,7 @@
   const loops = {};
   const LOOP_CFG = { magnet: { f: 150, type: "sine", g: 0.007 }, radar: { f: 880, type: "sine", g: 0.005, pulse: 3 }, speed: { f: 430, type: "sine", g: 0.008 } };
   function startLoop(name) {
-    if (!ensure() || !sEnabled || loops[name]) return;
+    if (!ensure() || sfxVol <= 0 || loops[name]) return;
     const c = LOOP_CFG[name]; if (!c) return;
     const o = ctx.createOscillator(), g = ctx.createGain();
     o.type = c.type; o.frequency.value = c.f;
@@ -121,13 +124,13 @@
     stopMusic() { stopTrack(); },
     loop(name, on) { resume(); if (on) startLoop(name); else stopLoop(name); },
     stopAllLoops() { for (const n in loops) stopLoop(n); },
-    setMusic(on) { mEnabled = on; persist(); applyGains(); },
-    setSfx(on) { sEnabled = on; persist(); applyGains(); if (!on) this.stopAllLoops(); },
-    musicOn() { return mEnabled; },
-    sfxOn() { return sEnabled; },
-    // توافق: مفتاح صوت رئيسي
-    setMuted(m) { this.setMusic(!m); this.setSfx(!m); },
-    isMuted() { return !mEnabled && !sEnabled; },
-    toggleMute() { const m = !this.isMuted(); this.setMuted(m); return m; },
+    setMusicVol(v) { musicVol = Math.max(0, Math.min(1, v)); persist(); applyGains(); },
+    setSfxVol(v) { sfxVol = Math.max(0, Math.min(1, v)); persist(); applyGains(); if (sfxVol <= 0) this.stopAllLoops(); },
+    getMusicVol() { return musicVol; },
+    getSfxVol() { return sfxVol; },
+    // كتم رئيسي (لا يمسّ قيم الشرائح)
+    setMuted(m) { mutedAll = m; persist(); if (master) master.gain.value = m ? 0 : 1; },
+    isMuted() { return mutedAll; },
+    toggleMute() { this.setMuted(!mutedAll); return mutedAll; },
   };
 })();

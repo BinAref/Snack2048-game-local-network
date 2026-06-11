@@ -1,0 +1,85 @@
+name: Build APK
+
+# يبني نسخة الأندرويد تلقائياً عند كل تعديل على ملفات اللعبة أو مشروع Capacitor،
+# ويرفع الـ APK كأصل على إصدار v1 (نفس رابط التنزيل داخل اللعبة) وكـ artifact للتحميل.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'index.html'
+      - 'style.css'
+      - 'game.js'
+      - 'lang.js'
+      - 'sound.js'
+      - 'particles.js'
+      - 'sw.js'
+      - 'manifest.json'
+      - 'app/**'
+      - '.github/workflows/build-apk.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Sync web assets into app/www
+        run: |
+          cp index.html style.css game.js lang.js sound.js particles.js sw.js manifest.json icon.svg icon-192.png icon-512.png apple-touch-icon.png app/www/
+
+      - name: Install Capacitor dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Capacitor copy
+        working-directory: app
+        run: npx cap copy android
+
+      - name: Build debug APK
+        working-directory: app/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Stage APK
+        run: cp app/android/app/build/outputs/apk/debug/app-debug.apk Snake2048.apk
+
+      - name: Publish to release v1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh release view v1 >/dev/null 2>&1; then
+            gh release create v1 --title "Snake 2048 APK" --notes "Latest auto-built Android build."
+          fi
+          gh release upload v1 Snake2048.apk --clobber
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Snake2048-apk
+          path: Snake2048.apk
+          if-no-files-found: error

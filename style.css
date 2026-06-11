@@ -176,6 +176,12 @@ body::after {
 /* لوحة الإعدادات (بطاقات مريحة) */
 .settings-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0 16px; }
 .set-card { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 6px; border-radius: var(--radius-sm); background: rgba(0,212,255,0.06); border: 1px solid var(--border-neon); }
+/* قائمة الإعدادات (صفوف بشرائح/مفاتيح) */
+.settings-list { display: flex; flex-direction: column; gap: 10px; margin: 12px 0 16px; }
+.set-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: var(--radius-sm); background: rgba(0,212,255,0.06); border: 1px solid var(--border-neon); }
+.set-row .set-ic { font-size: 18px; width: 22px; text-align: center; }
+.set-row .set-lb { flex: 1; font-size: 13px; text-align: start; }
+.set-row input[type="range"] { flex: 0 0 110px; width: 110px; accent-color: var(--neon-blue); height: 4px; cursor: pointer; }
 .set-card:hover { background: rgba(0,212,255,0.1); }
 .set-ic { font-size: 22px; }
 .set-lb { font-size: 12px; text-align: center; line-height: 1.2; }
@@ -530,6 +536,19 @@ body::after {
 .charge-btn small, .charge-btn .kbd { display: block; margin-top: 2px; font-size: 10px; font-weight: 800; color: var(--bg-void); background: var(--neon-green); border-radius: 5px; padding: 0 4px; }
 .charge-btn:active { transform: translateY(2px); }
 .charge-btn:disabled { opacity: .35; cursor: default; }
+/* قوى مخزّنة (قنبلة/تجميد) — أعلى يسار */
+#stored { position: fixed; left: 12px; top: 38%; transform: translateY(-50%); z-index: 11; display: flex; flex-direction: column; gap: 8px; }
+#stored.hidden { display: none; }
+.stored-btn { position: relative; width: 50px; height: 50px; border-radius: var(--radius-sm); cursor: pointer; font-size: 24px;
+  background: rgba(255,107,61,0.14); border: 2px solid #ff6b3d; box-shadow: 0 0 12px rgba(255,107,61,0.45);
+  display: flex; align-items: center; justify-content: center; }
+.stored-btn:active { transform: translateY(2px); }
+.stored-btn .cnt { position: absolute; bottom: -4px; right: -4px; min-width: 17px; height: 17px; line-height: 17px; font-size: 11px; font-weight: 800; color: #fff; background: #ff3b3b; border-radius: 50%; text-align: center; }
+/* المشاهدة بعد الموت */
+#over-screen.overlay { background: rgba(7,13,25,0.55); }
+#spectate-bar { position: fixed; bottom: calc(16px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 12; display: flex; gap: 10px; }
+#spectate-bar.hidden { display: none; }
+#spectate-bar .ghost-btn { margin: 0; padding: 8px 16px; }
 
 /* ===== تحكّم اللمس ===== */
 #boost-btn {
