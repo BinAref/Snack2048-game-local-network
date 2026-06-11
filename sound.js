@@ -95,7 +95,7 @@
 
   // أصوات مستمرّة أثناء عمل القوى (مغناطيس/رادار/سرعة) — هادئة
   const loops = {}; // name -> {o, g, lfo}
-  const LOOP_CFG = { magnet: { f: 140, type: "sine", g: 0.06 }, radar: { f: 720, type: "sine", g: 0.045, pulse: 4 }, speed: { f: 240, type: "sawtooth", g: 0.06 } };
+  const LOOP_CFG = { magnet: { f: 150, type: "sine", g: 0.018 }, radar: { f: 880, type: "sine", g: 0.012, pulse: 3 }, speed: { f: 430, type: "sine", g: 0.02 } };
   function startLoop(name) {
     if (!ensure() || loops[name]) return;
     const c = LOOP_CFG[name]; if (!c) return;

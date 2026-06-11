@@ -565,6 +565,11 @@
     return list[0][key];
   }
 
+  // قريب جداً من حدود الساحة؟ (ندفع النقطة للخارج بمقدار الامتداد، فإن خرجت فهي قرب الحافة)
+  function tooCloseToEdge(x, y, ext) {
+    const dl = Math.hypot(x, y) || 1;
+    return !inBounds(x + (x / dl) * ext, y + (y / dl) * ext);
+  }
   // هل يوجد ثعبان (لاعب/بوت/بعيد) قرب هذه النقطة؟ (لمنع وضع حاجز فوقهم)
   function entityNear(x, y, r) {
     if (state === "playing" && Math.hypot(snake.x - x, snake.y - y) < r) return true;
@@ -584,7 +589,7 @@
         for (let j = -cells; j <= cells; j++) {
           if (Math.random() < 0.30) {
             const x = i * gap, y = j * gap;
-            if (Math.hypot(x, y) < Math.min(16, R * 0.5) || !inBounds(x, y) || entityNear(x, y, gap * 0.4 + 11)) continue;
+            if (Math.hypot(x, y) < Math.min(16, R * 0.5) || !inBounds(x, y) || tooCloseToEdge(x, y, gap * 0.32 + R * 0.07) || entityNear(x, y, gap * 0.4 + 11)) continue;
             obstacles.push({ x, y, hw: gap * 0.32, hh: gap * 0.32, h: 5.0, color: "#3a4a66", kind: "box" });
           }
         }
@@ -594,14 +599,16 @@
       let tries = 0;
       while (obstacles.length < count && tries < 300) {
         tries++;
-        const x = rand(-R * 0.8, R * 0.8), y = rand(-R * 0.8, R * 0.8);
+        const x = rand(-R * 0.78, R * 0.78), y = rand(-R * 0.78, R * 0.78);
         if (Math.hypot(x, y) < clearO || !inBounds(x, y)) continue;
         const kind = KINDS[(Math.random() * KINDS.length) | 0];
         let hw, hh;
         if (kind === "box") { const longish = Math.random() < 0.5, a = rand(3, 9) * ss, b = rand(3, 9) * ss; hw = longish ? a * 1.6 : a; hh = longish ? b : b * 1.6; }
         else { hw = hh = rand(4, 7) * ss; }
-        let ok = !entityNear(x, y, Math.max(hw, hh) + 13); // لا تضعه فوق ثعبان
-        if (ok) for (const o of obstacles) if (Math.abs(o.x - x) < o.hw + hw + 4 && Math.abs(o.y - y) < o.hh + hh + 4) { ok = false; break; }
+        const ext = Math.max(hw, hh);
+        let ok = !tooCloseToEdge(x, y, ext + R * 0.08) && !entityNear(x, y, ext + 13); // بعيد عن الحافة + لا فوق ثعبان
+        if (ok) for (const o of obstacles) if (Math.abs(o.x - x) < o.hw + hw + 6 && Math.abs(o.y - y) < o.hh + hh + 6) { ok = false; break; } // لا تداخل مع حاجز
+        if (ok) for (const d of dangers) if (Math.hypot(d.x - x, d.y - y) < d.r + ext + 6) { ok = false; break; } // لا فوق منطقة خطر
         if (ok) obstacles.push({ x, y, hw, hh, h: 5.0, color: "#3a4a66", kind });
       }
     }
@@ -615,9 +622,15 @@
     const clearR = Math.min(20, R * 0.55), dRad = clamp(R * 0.1, 3, 11);
     let dtries = 0;
     for (let i = 0; i < dz && dtries < 400; dtries++) {
-      const x = rand(-R * 0.85, R * 0.85), y = rand(-R * 0.85, R * 0.85);
+      const x = rand(-R * 0.8, R * 0.8), y = rand(-R * 0.8, R * 0.8);
       if (Math.hypot(x, y) < clearR || !inBounds(x, y) || entityNear(x, y, dRad + 14)) continue; // لا فوق ثعبان
-      dangers.push({ x, y, r: rand(dRad * 0.6, dRad), shape: DSHAPES[(Math.random() * DSHAPES.length) | 0], rot: rand(0, Math.PI) });
+      const rr = rand(dRad * 0.6, dRad);
+      if (tooCloseToEdge(x, y, rr + R * 0.08)) continue;                                          // بعيد عن الحافة
+      let dok = true;
+      for (const o of obstacles) if (Math.hypot(o.x - x, o.y - y) < rr + Math.max(o.hw, o.hh) + 6) { dok = false; break; } // لا فوق حاجز
+      if (dok) for (const d of dangers) if (Math.hypot(d.x - x, d.y - y) < rr + d.r + 8) { dok = false; break; }            // لا تداخل بين مناطق الخطر
+      if (!dok) continue;
+      dangers.push({ x, y, r: rr, shape: DSHAPES[(Math.random() * DSHAPES.length) | 0], rot: rand(0, Math.PI) });
       i++;
     }
   }
