@@ -1451,17 +1451,27 @@
     for (const r of remotes.values()) if (r.body) ents.push({ id: r.id, x: r.x, y: r.y, head: r.head });
     for (const e of ents) { const d = Math.hypot(e.x - hx, e.y - hy); if (d > eyeR) continue; if (e.head > hv) { if (d < tD) { tD = d; nThreat = e; } } else if (e.head < hv) { if (d < pD) { pD = d; nPrey = e; } } }
     bot.boost = false;
-    if (nThreat && tD < 22 * (0.6 + smart)) { const a = Math.atan2(hy - nThreat.y, hx - nThreat.x); ax += Math.cos(a) * 2.6; ay += Math.sin(a) * 2.6; if (tD < 9 && bot.stamina > 0.3) bot.boost = true; } // اندفاع للهروب
-    if (nPrey && pD < 26 && Math.random() < 0.5 + smart * 0.5) { const a = Math.atan2(nPrey.y - hy, nPrey.x - hx); ax += Math.cos(a) * (1 + smart); ay += Math.sin(a) * (1 + smart); if (pD < 11 && bot.stamina > 0.3) bot.boost = true; }
-    let bf = null, bd = 1e9;
-    for (const f of foods) { if (f.value > hv || (f.noEat && now < f.noEat)) continue; const d = Math.hypot(f.x - hx, f.y - hy); if (d > VISION) continue; if (d < bd) { bd = d; bf = f; } }
-    // الأذكياء يقصدون مكعبات القوى القريبة المرئية
-    if (smart > 0.4) for (const p of powerups) { const d = Math.hypot(p.x - hx, p.y - hy); if (d < VISION * 0.7 && (!bf || d < bd * 0.8)) { bf = p; bd = d; } }
-    if (bf) { const a = Math.atan2(bf.y - hy, bf.x - hx); ax += Math.cos(a) * (nThreat && tD < 18 ? 0.4 : 1.4); ay += Math.sin(a) * (nThreat && tD < 18 ? 0.4 : 1.4); }
+    const threatened = nThreat && tD < 22 * (0.6 + smart);
+    // 1) الهروب من الأقوى (أقوى دفعاً مع الذكاء، واندفاع عند الاقتراب)
+    if (threatened) { const a = Math.atan2(hy - nThreat.y, hx - nThreat.x), w = 2.8 * (1 + smart * 0.5); ax += Math.cos(a) * w; ay += Math.sin(a) * w; if (tD < 11 && bot.stamina > 0.3) bot.boost = true; }
+    // 2) قرار مهاجمة الأضعف القريب (الهجوم أولى من الطعام، ولا يطارد إن كان مهدّداً إلا إن الفريسة أقرب من الخطر)
+    const wantPrey = nPrey && pD < 30 && (!threatened || pD < tD * 0.6) && Math.random() < 0.4 + smart * 0.6;
+    if (wantPrey) { const a = Math.atan2(nPrey.y - hy, nPrey.x - hx), w = (1.4 + smart * 1.6) * (pD < 12 ? 1.7 : 1); ax += Math.cos(a) * w; ay += Math.sin(a) * w; if (pD < 13 && bot.stamina > 0.3) bot.boost = true; } // انقضاض
+    // 3) أفضل هدف للأكل: طعام، أو قوة نافعة (أولوية أعلى)؛ ويتجنّب القوة الضارّة ÷2
+    let bf = null, bd = 1e9, bw = 1.3;
+    for (const f of foods) { if (f.value > hv || (f.noEat && now < f.noEat)) continue; const d = Math.hypot(f.x - hx, f.y - hy); if (d > VISION) continue; if (d < bd) { bd = d; bf = f; bw = 1.3; } }
+    if (smart > 0.35) for (const p of powerups) {
+      const d = Math.hypot(p.x - hx, p.y - hy); if (d > VISION * 0.8) continue;
+      if (p.type === "half") { if (d < 12) { const a = Math.atan2(hy - p.y, hx - p.x), w = 1.7 * (1 - d / 12); ax += Math.cos(a) * w; ay += Math.sin(a) * w; } } // ضارّة → ابتعد
+      else if (!bf || d < bd * 0.9) { bf = p; bd = d; bw = 1.9; } // نافعة → أولوية أعلى من الطعام
+    }
+    if (bf && !(wantPrey && pD < 14)) { const a = Math.atan2(bf.y - hy, bf.x - hx), w = bw * (threatened ? 0.35 : 1); ax += Math.cos(a) * w; ay += Math.sin(a) * w; } // لا يلهيه الطعام عن فريسة قريبة جداً
+    // 4) الحدود/الخطر/الحواجز: يتجنّبها ويلتفّ حولها. مخاطرة: يخفّف تجنّب الخطر إن كان يهرب من أقوى (قد يعبره للنجاة)
+    const riskMul = threatened && tD < 14 ? 0.45 : 1;
     const edgeD = CONFIG.WORLD - Math.max(Math.abs(hx), Math.abs(hy));
     if (edgeD < 18) { const a = Math.atan2(-hy, -hx), w = 3.5 * (1 - edgeD / 18); ax += Math.cos(a) * w; ay += Math.sin(a) * w; }
-    for (const dz of dangers) { const d = Math.hypot(dz.x - hx, dz.y - hy), rr = dz.r + 9; if (d < rr) { const a = Math.atan2(hy - dz.y, hx - dz.x), w = 2.5 * (1 - d / rr); ax += Math.cos(a) * w; ay += Math.sin(a) * w; } }
-    if (smart > 0.3) for (const o of obstacles) { const d = Math.hypot(o.x - hx, o.y - hy), rr = Math.max(o.hw, o.hh) + 6; if (d < rr) { const a = Math.atan2(hy - o.y, hx - o.x), w = 1.8 * (1 - d / rr); ax += Math.cos(a) * w; ay += Math.sin(a) * w; } }
+    for (const dz of dangers) { const d = Math.hypot(dz.x - hx, dz.y - hy), rr = dz.r + 9; if (d < rr) { const a = Math.atan2(hy - dz.y, hx - dz.x), w = 2.5 * (1 - d / rr) * riskMul; ax += Math.cos(a) * w; ay += Math.sin(a) * w; } }
+    if (smart > 0.25) for (const o of obstacles) { const d = Math.hypot(o.x - hx, o.y - hy), rr = Math.max(o.hw, o.hh) + 6; if (d < rr) { const a = Math.atan2(hy - o.y, hx - o.x), w = 2.0 * (1 - d / rr); ax += Math.cos(a) * w; ay += Math.sin(a) * w; } }
     bot.desiredAngle = (ax || ay) ? Math.atan2(ay, ax) : bot.angle + rand(-0.3, 0.3);
     bot.desiredAngle += rand(-1, 1) * (1 - smart) * 0.45; // عدم دقّة للضعفاء
   }
