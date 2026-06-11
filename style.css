@@ -179,6 +179,7 @@ body::after {
 .set-card:hover { background: rgba(0,212,255,0.1); }
 .set-ic { font-size: 22px; }
 .set-lb { font-size: 12px; text-align: center; line-height: 1.2; }
+#set-haptics-card.hidden { display: none; }
 /* ملفّ اللاعب والإنجازات */
 .profile-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 6px 0 14px; }
 .stat { background: rgba(0,212,255,0.06); border: 1px solid var(--border-neon); border-radius: var(--radius-sm); padding: 9px 4px; text-align: center; }

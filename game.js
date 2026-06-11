@@ -81,7 +81,7 @@
   const sfx = (n) => { try { if (window.Sound) Sound.play(n); } catch (e) {} }; // مؤثّر صوتي آمن
   let wasBoosting = false; // لتشغيل صوت الاندفاع عند بدايته فقط
   let hapticsOn = true; try { hapticsOn = localStorage.getItem("snake2048_haptics") !== "0"; } catch (e) {}
-  let lowGfx = false; try { lowGfx = localStorage.getItem("snake2048_lowgfx") === "1"; } catch (e) {}
+  let lowGfx = false; // (أُزيل خيار الجودة)
   const vibrate = (ms) => { try { if (hapticsOn && window.Sound) Sound.vibrate(ms); } catch (e) {} };
   // إحصائيات اللاعب الدائمة + الإنجازات + شريط القتل
   let maxReign = 0, killFeed = [];
@@ -2493,30 +2493,28 @@
   window.openSettings = function () { document.getElementById("settings-screen").classList.remove("hidden"); };
   window.closeSettings = function () { document.getElementById("settings-screen").classList.add("hidden"); };
   function setChecked(id, v) { const e = document.getElementById(id); if (e) e.checked = v; }
-  // كتم/تشغيل الصوت (يزامن كل مفاتيح الصوت)
+  // موسيقى ومؤثّرات منفصلة
+  window.toggleMusic = function () { if (window.Sound) Sound.setMusic(document.getElementById("set-music").checked); };
+  window.toggleSfx = function () { if (window.Sound) Sound.setSfx(document.getElementById("set-sfx").checked); };
+  // مفتاح رئيسي في الإيقاف المؤقت (يكتم/يُعيد الكل)
   window.toggleSound = function () {
     if (!window.Sound) return;
     const on = !Sound.toggleMute();
-    setChecked("set-sound", on); setChecked("pause-snd-toggle", on);
+    setChecked("pause-snd-toggle", on); setChecked("set-music", Sound.musicOn()); setChecked("set-sfx", Sound.sfxOn());
   };
   window.toggleHaptics = function () {
     const cb = document.getElementById("set-haptics"); hapticsOn = cb ? cb.checked : !hapticsOn;
     try { localStorage.setItem("snake2048_haptics", hapticsOn ? "1" : "0"); } catch (e) {}
     if (hapticsOn) vibrate(30);
   };
-  window.toggleQuality = function () {
-    const cb = document.getElementById("set-quality"); lowGfx = cb ? !cb.checked : !lowGfx;
-    try { localStorage.setItem("snake2048_lowgfx", lowGfx ? "1" : "0"); } catch (e) {}
-    applyQuality();
-  };
-  function applyQuality() { try { const bg = document.getElementById("bg-stars"); if (bg) bg.style.display = lowGfx ? "none" : ""; } catch (e) {} }
+  // إخفاء الاهتزاز إن لم يكن مدعوماً (سطح المكتب)
+  try { if (!(touchDevice && "vibrate" in navigator)) { const c = document.getElementById("set-haptics-card"); if (c) c.classList.add("hidden"); } } catch (e) {}
   // ضبط الحالة الأولية للمفاتيح
   try {
-    setChecked("set-sound", !(window.Sound && Sound.isMuted()));
-    setChecked("pause-snd-toggle", !(window.Sound && Sound.isMuted()));
+    setChecked("set-music", !window.Sound || Sound.musicOn());
+    setChecked("set-sfx", !window.Sound || Sound.sfxOn());
     setChecked("set-haptics", hapticsOn);
-    setChecked("set-quality", !lowGfx);
-    applyQuality();
+    setChecked("pause-snd-toggle", !(window.Sound && Sound.isMuted()));
   } catch (e) {}
 
   // ===== الإنجازات (نظام متدرّج) + ملفّ اللاعب =====
