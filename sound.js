@@ -93,12 +93,34 @@
   }
   function stopTrack() { musicMode = null; if (musicTimer) clearInterval(musicTimer); musicTimer = null; }
 
+  // أصوات مستمرّة أثناء عمل القوى (مغناطيس/رادار/سرعة) — هادئة
+  const loops = {}; // name -> {o, g, lfo}
+  const LOOP_CFG = { magnet: { f: 140, type: "sine", g: 0.06 }, radar: { f: 720, type: "sine", g: 0.045, pulse: 4 }, speed: { f: 240, type: "sawtooth", g: 0.06 } };
+  function startLoop(name) {
+    if (!ensure() || loops[name]) return;
+    const c = LOOP_CFG[name]; if (!c) return;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = c.type; o.frequency.value = c.f;
+    g.gain.setValueAtTime(0.0001, ctx.currentTime); g.gain.exponentialRampToValueAtTime(c.g, ctx.currentTime + 0.12);
+    o.connect(g); g.connect(sfxGain); o.start();
+    let lfo = null;
+    if (c.pulse) { lfo = ctx.createOscillator(); const la = ctx.createGain(); lfo.frequency.value = c.pulse; la.gain.value = c.g * 0.8; lfo.connect(la); la.connect(g.gain); lfo.start(); } // نبض الرادار
+    loops[name] = { o, g, lfo };
+  }
+  function stopLoop(name) {
+    const L = loops[name]; if (!L) return;
+    try { L.g.gain.cancelScheduledValues(ctx.currentTime); L.g.gain.setValueAtTime(L.g.gain.value, ctx.currentTime); L.g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12); L.o.stop(ctx.currentTime + 0.18); if (L.lfo) L.lfo.stop(ctx.currentTime + 0.18); } catch (e) {}
+    delete loops[name];
+  }
+
   window.Sound = {
     play(name) { resume(); if (SFX[name]) SFX[name](); },
     vibrate(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} },
     startMusic() { startTrack("game"); },
     startMenu() { startTrack("menu"); },
     stopMusic() { stopTrack(); },
+    loop(name, on) { resume(); if (on) startLoop(name); else stopLoop(name); }, // صوت مستمرّ أثناء عمل القوة
+    stopAllLoops() { for (const n in loops) stopLoop(n); },
     toggleMute() { muted = !muted; try { localStorage.setItem("snake2048_mute", muted ? "1" : "0"); } catch (e) {} if (master) master.gain.value = muted ? 0 : 1; return muted; },
     setMuted(m) { if (muted !== m) this.toggleMute(); },
     isMuted() { return muted; },

@@ -565,7 +565,14 @@
     return list[0][key];
   }
 
-  // توليد الحواجز (يتناسب مع حجم الساحة)
+  // هل يوجد ثعبان (لاعب/بوت/بعيد) قرب هذه النقطة؟ (لمنع وضع حاجز فوقهم)
+  function entityNear(x, y, r) {
+    if (state === "playing" && Math.hypot(snake.x - x, snake.y - y) < r) return true;
+    for (const b of bots.values()) if (Math.hypot(b.x - x, b.y - y) < r) return true;
+    for (const rm of remotes.values()) if (rm.x != null && Math.hypot(rm.x - x, rm.y - y) < r) return true;
+    return false;
+  }
+  // توليد الحواجز (يتناسب مع حجم الساحة، ولا يظهر فوق أي ثعبان)
   function genObstacles() {
     const R = CONFIG.WORLD;
     obstacles = [];
@@ -577,7 +584,7 @@
         for (let j = -cells; j <= cells; j++) {
           if (Math.random() < 0.30) {
             const x = i * gap, y = j * gap;
-            if (Math.hypot(x, y) < Math.min(16, R * 0.5) || !inBounds(x, y)) continue;
+            if (Math.hypot(x, y) < Math.min(16, R * 0.5) || !inBounds(x, y) || entityNear(x, y, gap * 0.4 + 11)) continue;
             obstacles.push({ x, y, hw: gap * 0.32, hh: gap * 0.32, h: 5.0, color: "#3a4a66", kind: "box" });
           }
         }
@@ -593,8 +600,8 @@
         let hw, hh;
         if (kind === "box") { const longish = Math.random() < 0.5, a = rand(3, 9) * ss, b = rand(3, 9) * ss; hw = longish ? a * 1.6 : a; hh = longish ? b : b * 1.6; }
         else { hw = hh = rand(4, 7) * ss; }
-        let ok = true;
-        for (const o of obstacles) if (Math.abs(o.x - x) < o.hw + hw + 4 && Math.abs(o.y - y) < o.hh + hh + 4) { ok = false; break; }
+        let ok = !entityNear(x, y, Math.max(hw, hh) + 13); // لا تضعه فوق ثعبان
+        if (ok) for (const o of obstacles) if (Math.abs(o.x - x) < o.hw + hw + 4 && Math.abs(o.y - y) < o.hh + hh + 4) { ok = false; break; }
         if (ok) obstacles.push({ x, y, hw, hh, h: 5.0, color: "#3a4a66", kind });
       }
     }
@@ -609,7 +616,7 @@
     let dtries = 0;
     for (let i = 0; i < dz && dtries < 400; dtries++) {
       const x = rand(-R * 0.85, R * 0.85), y = rand(-R * 0.85, R * 0.85);
-      if (Math.hypot(x, y) < clearR || !inBounds(x, y)) continue;
+      if (Math.hypot(x, y) < clearR || !inBounds(x, y) || entityNear(x, y, dRad + 14)) continue; // لا فوق ثعبان
       dangers.push({ x, y, r: rand(dRad * 0.6, dRad), shape: DSHAPES[(Math.random() * DSHAPES.length) | 0], rot: rand(0, Math.PI) });
       i++;
     }
@@ -1055,6 +1062,7 @@
     if (deathBest > highScore) { highScore = deathBest; try { localStorage.setItem("snake2048_high", String(highScore)); } catch (e) {} }
     if (online) netSend({ t: "dead" });
     sfx(byEnemy ? "eaten" : "death"); vibrate(140); // عدو أكلك ≠ موت بحاجز/خطر
+    if (window.Sound) Sound.stopAllLoops();
     spawnDeathFx();
     state = "dying"; deathTimer = 0.62; // القطع تتطاير ثم تختفي فجأة ثم تظهر شاشة الخسارة
     document.getElementById("chat-bar").classList.add("hidden");
@@ -1131,7 +1139,7 @@
   // الفوز عند بلوغ اللانهائية: تنتهي اللعبة، والفائز يبدأ التالية ومعه 3 شحنات
   function winGame(winner, winnerId) {
     if (state !== "playing") return;
-    state = "won"; sfx("win");
+    state = "won"; sfx("win"); if (window.Sound) Sound.stopAllLoops();
     recordGameEnd(!online || winnerId === myId);
     if (!online || winnerId === myId) { prizeCharges = 3; savePrize(); } // الجائزة للفائز فقط، وتبقى محفوظة
     if (headValue() > highScore) { highScore = headValue(); try { localStorage.setItem("snake2048_high", String(highScore)); } catch (e) {} }
@@ -1231,6 +1239,8 @@
       const mr = magnetRange(), mp = magnetPull();
       for (const f of foods) { const dx = snake.x - f.x, dy = snake.y - f.y, d = Math.hypot(dx, dy); if (d < mr && d > 0.1) { const pull = Math.min(mp * dt, d); f.x += dx / d * pull; f.y += dy / d * pull; } }
     }
+    // أصوات مستمرّة أثناء عمل القوى (اللاعب المحلي فقط)
+    if (window.Sound) { Sound.loop("speed", snake.speedTimer > 0); Sound.loop("radar", snake.radarTimer > 0); Sound.loop("magnet", snake.magnetTimer > 0); }
     if (authority()) updateDangerProjectiles(dt); // المضيف يحرّك مناطق الخطر المتقدّمة
 
     // توجيه: لوحة المفاتيح > عصا اللمس > الماوس
@@ -2266,7 +2276,7 @@
     hideRoomCodeHud(); document.body.classList.remove("in-game");
     hostLobby = false;
     if (localNet && Nearby) { try { Nearby.stop(); } catch (_) {} } localNet = false;
-    try { if (window.Sound) Sound.startMenu(); } catch (e) {} // موسيقى المنيو
+    try { if (window.Sound) { Sound.stopAllLoops(); Sound.startMenu(); } } catch (e) {} // موسيقى المنيو
     try { if (peer) peer.destroy(); } catch (_) {}
     document.getElementById("start-screen").classList.remove("hidden");
     document.getElementById("chat-bar").classList.add("hidden");
@@ -2278,7 +2288,7 @@
   // ===== الإيقاف المؤقت =====
   function pauseGame() {
     if (state !== "playing") return;
-    state = "paused";
+    state = "paused"; if (window.Sound) Sound.stopAllLoops();
     document.getElementById("pause-screen").classList.remove("hidden");
     document.getElementById("chat-bar").classList.add("hidden");
     document.body.classList.remove("in-game");
