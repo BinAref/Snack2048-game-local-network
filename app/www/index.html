@@ -64,11 +64,7 @@
   <!-- ===== شاشة البداية ===== -->
   <div id="start-screen" class="overlay">
     <div class="panel menu-panel">
-      <!-- زاوية البداية: زر إغلاق اللعبة فقط (انتقل الملف الشخصي لزاوية اللغة) -->
-      <div class="corner-cluster start-cluster">
-        <button id="quit-btn" class="corner-quit" onclick="quitGame()">✕ <span data-i18n="closeGame">إغلاق اللعبة</span></button>
-      </div>
-      <!-- زاوية اللغة: شبكة 2×2 على الشاشات العادية، وتتحوّل لقائمة جانبية منسدلة في الوضع الأفقي للهاتف -->
+      <!-- أزرار الزاوية: صفّ واحد (لغة، ملف، إعدادات، ؟)؛ وتتحوّل لقائمة جانبية منسدلة في الوضع الأفقي -->
       <div class="corner-cluster end-cluster">
         <button id="menu-fab" class="menu-fab" onclick="toggleSideMenu()" aria-label="menu">☰</button>
         <div class="end-items">
@@ -82,9 +78,9 @@
           <button id="profile-btn" class="corner-btn" onclick="closeSideMenu();openProfile()" data-i18n-title="profile">👤</button>
           <button id="settings-btn" class="corner-btn" onclick="closeSideMenu();openSettings()" data-i18n-title="settings">⚙️</button>
           <button id="help-btn" class="corner-btn" onclick="closeSideMenu();openHelp()" data-i18n-title="help">❓</button>
-          <!-- عناصر تظهر فقط في القائمة الجانبية (الوضع الأفقي): تنزيل بالاسم + إغلاق (بعرض خانتين) -->
-          <button class="side-dl ls-only" onclick="closeSideMenu();downloadAndroid()">🤖 <span data-i18n="dlForAndroid">تنزيل للأندرويد</span></button>
-          <button class="side-dl ls-only" onclick="closeSideMenu();downloadIphone()">🍎 <span data-i18n="dlForIphone">تنزيل للآيفون</span></button>
+          <!-- عناصر تظهر فقط في القائمة الجانبية (الوضع الأفقي): تنزيل بالاسم (بلا أيقونة) + إغلاق -->
+          <button class="side-dl ls-only" onclick="closeSideMenu();downloadAndroid()"><span data-i18n="dlForAndroid">تنزيل للأندرويد</span></button>
+          <button class="side-dl ls-only" onclick="closeSideMenu();downloadIphone()"><span data-i18n="dlForIphone">تنزيل للآيفون</span></button>
           <button class="side-close ls-only" onclick="quitGame()">✕ <span data-i18n="closeGame">إغلاق</span></button>
         </div>
       </div>
@@ -109,8 +105,8 @@
       <div class="menu-col menu-col-b">
       <!-- وضع منفرد / جماعي (أيقونات) -->
       <div id="mode-switch">
-        <button id="btn-solo"  class="switch-btn active" onclick="switchMode('solo')"  data-i18n-title="solo">👤</button>
-        <button id="btn-multi" class="switch-btn"        onclick="switchMode('multi')" data-i18n-title="multi">👥</button>
+        <button id="btn-solo"  class="switch-btn active" onclick="switchMode('solo')"  data-i18n-title="solo">👤 <span data-i18n="solo">منفرد</span></button>
+        <button id="btn-multi" class="switch-btn"        onclick="switchMode('multi')" data-i18n-title="multi">👥 <span data-i18n="multi">جماعي</span></button>
       </div>
 
       <!-- Solo -->
