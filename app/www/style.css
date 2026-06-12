@@ -324,6 +324,7 @@ body::after {
 .side-dl:hover { background: rgba(0,212,255,0.2); box-shadow: var(--glow-blue); }
 .side-close { border: 1px solid var(--neon-red); background: rgba(255,48,48,0.08); color: var(--neon-red); }
 .side-close:hover { background: rgba(255,48,48,0.16); }
+.end-items .side-close { display: none; } /* في العمودي: الإغلاق منفصل في زاويته، لا داخل الشبكة */
 .corner-quit { padding: 7px 11px; font-size: 12px; border-radius: var(--radius-sm); flex: 0 0 auto;
   border: 1px solid var(--neon-red); color: var(--neon-red); background: rgba(255,48,48,0.07); cursor: pointer; white-space: nowrap;
   display: flex; align-items: center; justify-content: center; gap: 4px; text-align: center; }
@@ -731,7 +732,7 @@ body.touch #stored { left: auto; right: calc(14px + env(safe-area-inset-right));
   /* الأفقي: الشعار والاسم جنباً إلى جنب (في الوضعين) */
   .overlay { align-items: center; }
   .menu-panel { max-height: 94vh; overflow-y: auto; padding: 14px 20px; }
-  .logo-block { flex-direction: row; gap: 14px; margin-bottom: 6px; }
+  .logo-block { flex-direction: row; justify-content: center; gap: 14px; margin-bottom: 6px; } /* الأيقونة + الاسم في المنتصف (solo و multi) */
   .logo-ring { width: 60px; height: 60px; }
   .game-title { align-items: flex-start; }
   .game-title .t-snake { font-size: 34px; letter-spacing: 2px; }
@@ -766,8 +767,7 @@ body.touch #stored { left: auto; right: calc(14px + env(safe-area-inset-right));
   .end-items .corner-btn { width: 100%; height: 34px; font-size: 15px; }
   .end-items .lang-dd { width: 100%; }
   .end-items #lang-btn { width: 100%; height: 34px; padding: 0; font-size: 12px; display: flex; align-items: center; justify-content: center; }
-  .ls-only { display: flex; }
-  .end-items .side-close { grid-column: 1 / -1; width: 100%; height: auto; padding: 6px 8px; font-size: 11px; } /* الإغلاق صفّاً كاملاً أسفل الشبكة */
+  .end-items .side-close { display: flex; grid-column: 1 / -1; width: 100%; height: auto; padding: 6px 8px; font-size: 11px; } /* الأفقي: الإغلاق صفّاً كاملاً أسفل الشبكة */
   /* قائمة اللغات تُعرض موسّطة كي لا تُقصّ داخل القائمة الصغيرة */
   .end-items #lang-menu { position: fixed; top: 50%; inset-inline-start: 50%; inset-inline-end: auto; transform: translate(-50%, -50%); width: min(86vw, 320px); }
 
