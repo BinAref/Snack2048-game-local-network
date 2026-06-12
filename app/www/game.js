@@ -85,10 +85,6 @@
   const sfx = (n) => { try { if (window.Sound) Sound.play(n); } catch (e) {} }; // مؤثّر صوتي آمن
   let wasBoosting = false; // لتشغيل صوت الاندفاع عند بدايته فقط
   let hapticsOn = true; try { hapticsOn = localStorage.getItem("snake2048_haptics") !== "0"; } catch (e) {}
-  let lowGfx = false; // (أُزيل خيار الجودة)
-  let joySens = 1, invertCtrl = false;
-  try { const s = parseFloat(localStorage.getItem("snake2048_sens")); if (!isNaN(s)) joySens = clamp(s, 0.5, 2); } catch (e) {}
-  try { invertCtrl = localStorage.getItem("snake2048_invert") === "1"; } catch (e) {}
   const vibrate = (ms) => { try { if (hapticsOn && window.Sound) Sound.vibrate(ms); } catch (e) {} };
   // إحصائيات اللاعب الدائمة + الإنجازات + شريط القتل
   let maxReign = 0, killFeed = [];
@@ -497,6 +493,9 @@
   // =====================================================================
   let foods = [], powerups = [], obstacles = [], dangers = [];
   let mapShape = "square", mapTri = null;
+  // رؤوس المثلّث تُشتقّ من حجم الساحة الحالي (تتوسّع مع نموّ الأرضية)، ونصف امتداد الشكل لأخذ عيّنات المواقع
+  const triVerts = () => [0, 1, 2].map((i) => { const a = -Math.PI / 2 + i * (Math.PI * 2 / 3); return { x: Math.cos(a) * CONFIG.WORLD * 1.3, y: Math.sin(a) * CONFIG.WORLD * 1.3 }; });
+  const shapeExtent = () => mapShape === "triangle" ? CONFIG.WORLD * 1.3 : CONFIG.WORLD;
 
   function inBounds(x, y) {
     const R = CONFIG.WORLD;
@@ -546,8 +545,8 @@
     }
   }
   function freePos(margin) {
-    const R = CONFIG.WORLD * 0.9;
-    for (let k = 0; k < 40; k++) {
+    const R = shapeExtent() * 0.95; // يملأ كامل الشكل (المثلّث أوسع من المربّع/الدائرة)
+    for (let k = 0; k < 60; k++) {
       const x = rand(-R, R), y = rand(-R, R);
       if (inBounds(x, y) && !insideObstacle(x, y, margin) && !inDanger(x, y)) return { x, y };
     }
@@ -646,9 +645,7 @@
   let obsRelocTimer = 0, dzRelocTimer = 0;
   function genMap() {
     mapShape = MAP_PATTERNS[(gameLevel - 1 + mapRotation) % MAP_PATTERNS.length];
-    const R = CONFIG.WORLD;
-    if (mapShape === "triangle")
-      mapTri = [0, 1, 2].map((i) => { const a = -Math.PI / 2 + i * (Math.PI * 2 / 3); return { x: Math.cos(a) * R * 1.3, y: Math.sin(a) * R * 1.3 }; });
+    if (mapShape === "triangle") mapTri = triVerts();
     genObstacles(); genDangers();
     obsRelocTimer = 0; dzRelocTimer = 0;
   }
@@ -671,7 +668,10 @@
   function foodTarget() { return clamp(Math.round(CONFIG.FOOD_COUNT * Math.pow(CONFIG.WORLD / CONFIG.WORLD_MAX, 2)), 14, CONFIG.FOOD_COUNT); }
   function updateWorldSize(dt) {
     const target = clamp(CONFIG.WORLD_MIN + CONFIG.WORLD_STEP * (entityCount() - 1), CONFIG.WORLD_MIN, CONFIG.WORLD_MAX);
-    if (target > CONFIG.WORLD) CONFIG.WORLD = Math.min(target, CONFIG.WORLD + 8 * dt); // نمو سلس
+    if (target > CONFIG.WORLD) {
+      CONFIG.WORLD = Math.min(target, CONFIG.WORLD + 8 * dt); // نمو سلس
+      if (mapShape === "triangle") mapTri = triVerts(); // الأرضية المثلّثة تتوسّع مع الساحة أيضاً
+    }
   }
   function maintainFood() {
     let reg = 0; for (const f of foods) if (!f.loose) reg++;
@@ -681,7 +681,7 @@
   // عوامل التناسب مع حجم الساحة
   const mapFrac = () => CONFIG.WORLD / CONFIG.WORLD_MAX;            // 0..1
   const mapSpeed = () => clamp(mapFrac(), 0.55, 1);                 // السرعة تتناسب مع الساحة (بحدّ أدنى)
-  const areaRadius = () => clamp(CONFIG.WORLD * 0.2, 7, 22);        // منطقة القنبلة/التجميد (صغيرة وتتوسّع مع الساحة)
+  const areaRadius = () => clamp(CONFIG.WORLD * 16 / CONFIG.WORLD_MAX, 5, 16); // منطقة القنبلة/التجميد: صغيرة وتتوسّع مع الساحة (مثل المغناطيس)
   function powerupTarget() { return clamp(Math.round(CONFIG.POWERUP_COUNT * mapFrac()), 1, CONFIG.POWERUP_COUNT); }
   // القوة تبقى 5 ثوانٍ (+ حتى 3 مع كبر الساحة) ثم تختفي، وتظهر جديدة بعد انتظار 2 ثانية (+ حتى 1 مع الساحة) — لا فوراً
   const powerupLifetime = () => 5 + 3 * mapFrac();
@@ -1004,7 +1004,7 @@
   // =====================================================================
   // حالة اللعبة + الميداليات
   // =====================================================================
-  let state = "menu", lastT = 0, now = 0, playTime = 0, spectating = false;
+  let state = "menu", lastT = 0, now = 0, playTime = 0, spectating = false, spectateTarget = null;
   let fpsAvg = 60, perfScale = 1, perfHold = 0; // أداء تكيّفي
   let highScore = 0;
   try { highScore = parseInt(localStorage.getItem("snake2048_high") || "0") || 0; } catch (e) {}
@@ -1046,7 +1046,7 @@
     snake.x = Math.cos(a) * d; snake.y = Math.sin(a) * d; snake.path = [{ x: snake.x, y: snake.y }];
     snake.charges = prizeCharges; updateCharges();
     particles = []; floatEmojis = []; debris = []; rings = []; flash = 0;
-    document.getElementById("over-screen").classList.add("hidden");
+    document.getElementById("over-hud").classList.add("hidden");
     document.getElementById("win-screen").classList.add("hidden");
     document.getElementById("chat-bar").classList.remove("hidden");
     document.body.classList.add("in-game");
@@ -1081,7 +1081,7 @@
     try { history.pushState({ p: "game" }, ""); } catch (_) {} // لاعتراض زر الرجوع
     syncPowers();
     document.getElementById("start-screen").classList.add("hidden");
-    document.getElementById("over-screen").classList.add("hidden");
+    document.getElementById("over-hud").classList.add("hidden");
     document.getElementById("win-screen").classList.add("hidden");
     if (isHost) { hostBroadcast(worldMsg()); hostBroadcast(itemsMsg()); }
   }
@@ -1106,7 +1106,7 @@
     recordGameEnd(false);
     document.getElementById("final-best").textContent = fmtNum(deathBest);
     document.getElementById("final-score").textContent = fmtNum(deathScore);
-    document.getElementById("over-screen").classList.remove("hidden");
+    enterSpectate(); // مشاهدة تلقائية مباشرة بعد الموت + بطاقة النتيجة والأزرار
   }
 
   function currentSpeed() {
@@ -1116,9 +1116,8 @@
     return CONFIG.SPEED * m * mapSpeed(); // السرعة تتناسب مع حجم الساحة
   }
   function steerTo(sdx, sdy, dt) {
-    if (invertCtrl) { sdx = -sdx; sdy = -sdy; }
     const o = unproject(W / 2, H / 2), p = unproject(W / 2 + sdx, H / 2 + sdy);
-    snake.angle = angleLerp(snake.angle, Math.atan2(p.y - o.y, p.x - o.x), CONFIG.TURN_RATE * joySens * dt);
+    snake.angle = angleLerp(snake.angle, Math.atan2(p.y - o.y, p.x - o.x), CONFIG.TURN_RATE * dt);
   }
 
   // المتصدّر = صاحب أعلى نقاط بين كل اللاعبين
@@ -1223,8 +1222,8 @@
   function updateStored() {
     const el = document.getElementById("stored"); if (!el) return;
     el.innerHTML = "";
-    const add = (icon, n, fn) => { if (n <= 0) return; const b = document.createElement("button"); b.className = "stored-btn"; b.innerHTML = icon + "<span class='cnt'>" + n + "</span>"; b.addEventListener("pointerdown", (e) => { e.preventDefault(); fn(); }); el.appendChild(b); };
-    add("💣", snake.bombs, useBomb); add("❄️", snake.freezes, useFreeze);
+    const add = (icon, n, fn, key) => { if (n <= 0) return; const b = document.createElement("button"); b.className = "stored-btn"; b.innerHTML = icon + "<span class='cnt'>" + n + "</span>" + (!touchDevice && key ? "<span class='key'>" + key + "</span>" : ""); b.addEventListener("pointerdown", (e) => { e.preventDefault(); fn(); }); el.appendChild(b); };
+    add("💣", snake.bombs, useBomb, "B"); add("❄️", snake.freezes, useFreeze, "C");
     el.classList.toggle("hidden", snake.bombs <= 0 && snake.freezes <= 0);
   }
 
@@ -1762,18 +1761,18 @@
     const so = shakeOffset();
     ctx.save(); ctx.translate(so.x, so.y);
     drawGround();
-    for (const p of powerups) drawCard(p.x, p.y, p.size, p.type);
+    // هامش رؤية واسع يراعي ارتفاع المكعّبات الكبيرة — يمنع اختفاء المجسّمات قرب حواف الشاشة وأطياف الأثر للكائنات البعيدة
+    const VIS_M = CONFIG.SCALE * 16 + 200;
+    const onScreen = (wx, wy) => { const p = project(wx, wy); return p.x > -VIS_M && p.x < W + VIS_M && p.y > -VIS_M && p.y < H + VIS_M; };
+    for (const p of powerups) if (onScreen(p.x, p.y)) drawCard(p.x, p.y, p.size, p.type);
     if (state === "playing" && (snake.boosting || snake.speedTimer > 0)) drawBoostJet(); // تحت المكعبات
-    for (const bt of bots.values()) if (bt.boost || bt.speedTimer > 0) { const t = tailOf(bt); drawJetAt(t.x, t.y, bt.angle, sizeForValue(bt.values[0]), bt.speedTimer > 0); }
-    for (const r of remotes.values()) if (r.boosting && r.body && r.body.length) { const t = r.body[r.body.length - 1]; drawJetAt(t.x, t.y, r.angle || 0, sizeForValue(r.head || 2), false); }
+    for (const bt of bots.values()) if ((bt.boost || bt.speedTimer > 0) && onScreen(bt.x, bt.y)) { const t = tailOf(bt); drawJetAt(t.x, t.y, bt.angle, sizeForValue(bt.values[0]), bt.speedTimer > 0); }
+    for (const r of remotes.values()) if (r.boosting && r.body && r.body.length && onScreen(r.x, r.y)) { const t = r.body[r.body.length - 1]; drawJetAt(t.x, t.y, r.angle || 0, sizeForValue(r.head || 2), false); }
     // هالة المغناطيس
     if (state === "playing" && snake.magnetTimer > 0) drawMagnetRing(snake.x, snake.y);
-    for (const bt of bots.values()) if (bt.magnetTimer > 0) drawMagnetRing(bt.x, bt.y);
+    for (const bt of bots.values()) if (bt.magnetTimer > 0 && onScreen(bt.x, bt.y)) drawMagnetRing(bt.x, bt.y);
     drawParticles(true); // شعاع السرعة يُرسم تحت المكعبات
     const drawables = [];
-    // عزل ما هو خارج الشاشة قبل الترتيب الطوبولوجي (O(N²)) — يمنع التعليق مهما كثرت الكائنات دون تغيير المظهر
-    const VIS_M = CONFIG.SCALE * 6 + 120;
-    const onScreen = (wx, wy) => { const p = project(wx, wy); return p.x > -VIS_M && p.x < W + VIS_M && p.y > -VIS_M && p.y < H + VIS_M; };
     const pushCube = (kind, x, y, size, value, shield) => {
       if (!onScreen(x, y)) return;
       const half = size / 2;
@@ -1797,10 +1796,11 @@
     drawDebris(); // قطع الموت المتطايرة
     drawParticles(false); // جسيمات الأكل/الدمج فوق المكعبات
     drawRings();
-    // أسماء الثعابين البعيدة والبوتات
-    for (const r of remotes.values()) drawRemoteLabel(r);
-    for (const bt of bots.values()) drawRemoteLabel({ x: bt.x, y: bt.y, head: bt.values[0], name: bt.name, color: bt.color, emojiLife: bt.emojiLife, emojiEm: bt.emojiEm });
-    drawArrow(); drawNameLabel(); drawEmojis();
+    // أسماء الثعابين البعيدة والبوتات (المرئية فقط)
+    for (const r of remotes.values()) if (onScreen(r.x, r.y)) drawRemoteLabel(r);
+    for (const bt of bots.values()) if (onScreen(bt.x, bt.y)) drawRemoteLabel({ x: bt.x, y: bt.y, head: bt.values[0], name: bt.name, color: bt.color, emojiLife: bt.emojiLife, emojiEm: bt.emojiEm });
+    if (state === "playing") { drawArrow(); drawNameLabel(); } // لا سهم/اسم للاعب الميت أثناء المشاهدة
+    drawEmojis();
     if (snake.radarTimer > 0) { drawPowerupRadar(); drawEffectTimer("📡", snake.radarTimer, "#ffd23f", 0); } // الرادار يكشف الكنوز/القوى
     if (snake.magnetTimer > 0) drawEffectTimer("🧲", snake.magnetTimer, "#c79bff", snake.radarTimer > 0 ? 1 : 0);
     if (state === "playing") drawMinimap();
@@ -1978,24 +1978,28 @@
     if (snake.speedTimer > 0) { sc.style.display = "block"; sc.style.width = (snake.speedTimer / CONFIG.SPEEDCUBE_TIME * 100) + "%"; }
     else sc.style.display = "none";
     document.getElementById("boost-bar-label").textContent = snake.exhausted ? "…" : "⚡";
-    const entries = [{ id: myId, name: playerName, head: headValue(), me: true }];
-    if (online) for (const r of remotes.values()) entries.push({ id: r.id, name: r.name || "?", head: r.head || 2, me: false });
+    const entries = spectating ? [] : [{ id: myId, name: playerName, head: headValue(), me: true }]; // أثناء المشاهدة لا نُدرج اللاعب الميت
+    if (online) for (const r of remotes.values()) { if (r.x == null) continue; entries.push({ id: r.id, name: r.name || "?", head: r.head || 2, me: false }); }
     for (const b of bots.values()) entries.push({ id: b.id, name: b.name, head: b.values[0], me: false });
     entries.sort((a, b) => b.head - a.head);
     const n = entries.length, myIdx = entries.findIndex((e) => e.me);
+    const curTarget = spectating ? (spectateTarget || (spectateEntity() ? spectateEntity().id : null)) : null;
     const row = (e, rank) => {
       const mstr = (e.id === medal.leaderId && medal.level > 0) ? " " + MEDALS[medal.level].icon : "";
-      return `<li class="${e.me ? "me" : ""}"><span><span class="rank">${rank}.</span> ${escapeHtml(e.name)}${mstr}</span><span>${fmtNum(e.head)}</span></li>`;
+      const cls = (e.me ? "me" : "") + (spectating && e.id === curTarget ? " spec-target" : "");
+      return `<li class="${cls}" data-pid="${e.id}"><span><span class="rank">${rank}.</span> ${escapeHtml(e.name)}${mstr}</span><span>${fmtNum(e.head)}</span></li>`;
     };
     let html = "";
-    if (!lbOpen) {
+    if (spectating) {
+      for (let i = 0; i < n; i++) html += row(entries[i], i + 1); // كل اللاعبين: قابلون للنقر للتبديل + تمرير
+    } else if (!lbOpen) {
       html = row(entries[myIdx], myIdx + 1); // مطويّ: مرتبتك فقط
     } else {
       // نافذة 7: 3 فوقك + أنت + 3 تحتك
       const start = Math.max(0, Math.min(myIdx - 3, Math.max(0, n - 7)));
       for (let i = start; i < Math.min(n, start + 7); i++) html += row(entries[i], i + 1);
     }
-    document.getElementById("lb-list").innerHTML = html;
+    { const ll = document.getElementById("lb-list"); const st = ll.scrollTop; ll.innerHTML = html; ll.scrollTop = st; } // حافظ على موضع التمرير أثناء المشاهدة
   }
   const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -2027,7 +2031,10 @@
   function emojiByIndex(i) { const b = chatButtons[i]; if (b) sendEmoji(b.dataset.emoji); }
   // الإحصائيات/المتصدّرون: pointerdown ليعملا أثناء تحريك اللاعب
   { const sb = document.getElementById("score-box"); if (sb) sb.addEventListener("pointerdown", (e) => { e.preventDefault(); toggleStats(); }); }
-  { const lb = document.getElementById("leaderboard"); if (lb) lb.addEventListener("pointerdown", (e) => { e.preventDefault(); toggleLB(); }); }
+  // أثناء المشاهدة لا نمنع الافتراضي (نترك التمرير اللمسي يعمل)؛ خارجها نطوي/نفتح القائمة
+  { const lb = document.getElementById("leaderboard"); if (lb) lb.addEventListener("pointerdown", (e) => { if (spectating) return; e.preventDefault(); toggleLB(); }); }
+  // نقر (click لا pointerdown) اسماً في المتصدّرين يبدّل اللاعب المُشاهَد — لا يعطّل سحب التمرير
+  { const ll = document.getElementById("lb-list"); if (ll) ll.addEventListener("click", (e) => { if (!spectating) return; const li = e.target.closest("li[data-pid]"); if (li) window.spectateSelect(li.getAttribute("data-pid")); }); }
   // طيّ/إظهار شريط الإيموجي (إيموجي واحد + سهم عند الطيّ)
   window.toggleEmojiBar = function () {
     const c = document.getElementById("chat-bar"); if (!c) return;
@@ -2038,7 +2045,7 @@
   // ===== الواجهة: الطيّ + اللغات =====
   let lbOpen = true, statsOpen = true, curLang = "en";
   window.toggleStats = function () { statsOpen = !statsOpen; document.getElementById("stats-body").classList.toggle("hidden", !statsOpen); document.getElementById("stats-arrow").textContent = statsOpen ? "▾" : "▸"; };
-  window.toggleLB = function () { lbOpen = !lbOpen; document.getElementById("lb-arrow").textContent = lbOpen ? "▾" : "▸"; };
+  window.toggleLB = function () { if (spectating) return; lbOpen = !lbOpen; document.getElementById("lb-arrow").textContent = lbOpen ? "▾" : "▸"; };
 
   function t(key) { const L = window.I18N || {}; return (L[curLang] && L[curLang][key]) || (L.en && L.en[key]) || key; }
   function applyI18n() {
@@ -2507,7 +2514,7 @@
         updateParticles(dt); updateEmojis(dt); updateRings(dt); updateDebris(dt); updateKillFeed(dt);
         if (state === "dying") { deathTimer -= dt; if (deathTimer <= 0) finalizeOver(); }
         if (state === "won") fireworksTick(dt); // ألعاب نارية
-        if (spectating) { if (!online) hostKeepAlive(dt); spectateCam(); } // مشاهدة: استمرّ في المحاكاة (فردي) واتبع المتصدّر
+        if (spectating) { if (!online) hostKeepAlive(dt); spectateCam(); updateHUD(); } // مشاهدة: استمرّ في المحاكاة (فردي)، اتبع الهدف، وحدّث المتصدّرين
         // المضيف ما زال داخل الغرفة (موقوف مؤقتاً/ميت): يُبقي العالم حياً ويوزّعه فلا يتجمّد العملاء
         if (isHost && online) {
           hostKeepAlive(dt);
@@ -2551,7 +2558,7 @@
   window.closeHelp = function () { document.getElementById("help-screen").classList.add("hidden"); };
   // الرجوع للواجهة الرئيسية من شاشتي الفوز/الخسارة
   window.toMenu = function () {
-    document.getElementById("over-screen").classList.add("hidden");
+    document.getElementById("over-hud").classList.add("hidden");
     document.getElementById("win-screen").classList.add("hidden");
     backToMenu();
   };
@@ -2582,9 +2589,6 @@
   // شرائح حجم الصوت
   window.setMusicVol = function () { if (window.Sound) Sound.setMusicVol(document.getElementById("set-music-vol").value / 100); };
   window.setSfxVol = function () { if (window.Sound) Sound.setSfxVol(document.getElementById("set-sfx-vol").value / 100); };
-  // حساسية العصا + عكس التحكّم
-  window.setSens = function () { joySens = clamp(document.getElementById("set-sens").value / 100, 0.5, 2); try { localStorage.setItem("snake2048_sens", joySens); } catch (e) {} };
-  window.toggleInvert = function () { invertCtrl = document.getElementById("set-invert").checked; try { localStorage.setItem("snake2048_invert", invertCtrl ? "1" : "0"); } catch (e) {} };
   // مفتاح صوت رئيسي في الإيقاف المؤقت
   window.toggleSound = function () { if (!window.Sound) return; const on = !Sound.toggleMute(); setChecked("pause-snd-toggle", on); };
   window.toggleHaptics = function () {
@@ -2597,8 +2601,6 @@
   try {
     setVal("set-music-vol", Math.round((window.Sound ? Sound.getMusicVol() : 0.9) * 100));
     setVal("set-sfx-vol", Math.round((window.Sound ? Sound.getSfxVol() : 0.9) * 100));
-    setVal("set-sens", Math.round(joySens * 100));
-    setChecked("set-invert", invertCtrl);
     setChecked("set-haptics", hapticsOn);
     setChecked("pause-snd-toggle", !(window.Sound && Sound.isMuted()));
   } catch (e) {}
@@ -2659,19 +2661,30 @@
   };
   window.closeProfile = function () { document.getElementById("profile-screen").classList.add("hidden"); };
 
-  // ===== المشاهدة بعد الموت =====
-  window.watchGame = function () {
-    spectating = true;
-    document.getElementById("over-screen").classList.add("hidden");
-    document.getElementById("spectate-bar").classList.remove("hidden");
-  };
-  function exitSpectate() { spectating = false; const b = document.getElementById("spectate-bar"); if (b) b.classList.add("hidden"); }
-  function spectateCam() { // اتبع المتصدّر
+  // ===== المشاهدة بعد الموت (تلقائية) =====
+  function enterSpectate() {
+    spectating = true; spectateTarget = null; // null = اتبع المتصدّر تلقائياً
+    document.body.classList.add("spectating");
+    lbOpen = true; const arr = document.getElementById("lb-arrow"); if (arr) arr.textContent = "▾";
+    document.getElementById("over-hud").classList.remove("hidden");
+    updateHUD();
+  }
+  function exitSpectate() {
+    spectating = false; spectateTarget = null;
+    document.body.classList.remove("spectating");
+    const o = document.getElementById("over-hud"); if (o) o.classList.add("hidden");
+  }
+  // كائن الهدف المُشاهَد حالياً (مختار أو المتصدّر)
+  function spectateEntity() {
+    if (spectateTarget) { if (bots.has(spectateTarget)) return bots.get(spectateTarget); if (remotes.has(spectateTarget)) { const r = remotes.get(spectateTarget); if (r.x != null) return r; } spectateTarget = null; } // الهدف غادر → عُد للمتصدّر
     let best = null, bs = -1;
     for (const b of bots.values()) { const s = botScore(b); if (s > bs) { bs = s; best = b; } }
-    for (const r of remotes.values()) if (r.x != null && (r.score || 0) > bs) { bs = r.score || 0; best = r; }
-    if (best) updateCamera(best.x, best.y);
+    for (const r of remotes.values()) if (r.x != null && (r.head || 0) > bs) { bs = r.head || 0; best = r; }
+    return best;
   }
+  function spectateCam() { const e = spectateEntity(); if (e) updateCamera(e.x, e.y); }
+  // اختيار لاعب لمشاهدته بالنقر على اسمه في قائمة المتصدّرين
+  window.spectateSelect = function (id) { if (!spectating) return; spectateTarget = id; updateHUD(); };
 
   buildPowers();
   // موسيقى المنيو تبدأ عند أول تفاعل (سياسة المتصفّحات للصوت)

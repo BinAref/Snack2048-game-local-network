@@ -194,21 +194,22 @@
     </div>
   </div>
 
-  <!-- ===== شاشة النهاية ===== -->
-  <div id="over-screen" class="overlay hidden">
-    <div class="panel">
-      <h1 data-i18n="gameOver">انتهت اللعبة</h1>
-      <p><span data-i18n="best">أعلى رقم</span>: <span id="final-best">2</span><br/>
-         <span data-i18n="score">النقاط</span>: <span id="final-score">0</span></p>
-      <button id="restart-btn" class="main-btn" data-i18n="restart">إعادة اللعب</button>
-      <button class="ghost-btn" onclick="watchGame()" data-i18n="watch">👁️ مشاهدة</button>
-      <button class="ghost-btn over-menu" onclick="toMenu()" data-i18n="exit">الخروج للقائمة</button>
+  <!-- ===== شاشة النهاية: مشاهدة تلقائية + بطاقة نتيجة + أزرار (غير حاجبة) ===== -->
+  <div id="over-hud" class="hidden">
+    <div class="over-card">
+      <span class="over-title" data-i18n="gameOver">انتهت اللعبة</span>
+      <div class="over-stats">
+        <div class="over-stat"><span class="os-label" data-i18n="score">النقاط</span><span id="final-score" class="os-val">0</span></div>
+        <div class="over-stat"><span class="os-label" data-i18n="best">أعلى رقم</span><span id="final-best" class="os-val">2</span></div>
+      </div>
     </div>
-  </div>
-  <!-- شريط المشاهدة بعد الموت -->
-  <div id="spectate-bar" class="hidden">
-    <button class="ghost-btn" onclick="restart()" data-i18n="restart">إعادة اللعب</button>
-    <button class="ghost-btn" onclick="toMenu()" data-i18n="exit">القائمة</button>
+    <div class="over-actions">
+      <span class="spectate-hint" data-i18n="spectateHint">👁️ تشاهد الآن — انقر اسماً في المتصدّرين للتبديل</span>
+      <div class="over-btns">
+        <button id="restart-btn" class="main-btn" data-i18n="restart">إعادة اللعب</button>
+        <button class="ghost-btn" onclick="toMenu()" data-i18n="exit">القائمة</button>
+      </div>
+    </div>
   </div>
 
   <!-- ===== شاشة الفوز ===== -->
@@ -318,8 +319,6 @@
       <div class="settings-list">
         <div class="set-row"><span class="set-ic">🎵</span><span class="set-lb" data-i18n="music">الموسيقى</span><input type="range" id="set-music-vol" min="0" max="100" oninput="setMusicVol()"/></div>
         <div class="set-row"><span class="set-ic">🔊</span><span class="set-lb" data-i18n="sfx">المؤثّرات</span><input type="range" id="set-sfx-vol" min="0" max="100" oninput="setSfxVol()"/></div>
-        <div class="set-row"><span class="set-ic">🕹️</span><span class="set-lb" data-i18n="sens">حساسية العصا</span><input type="range" id="set-sens" min="50" max="200" oninput="setSens()"/></div>
-        <div class="set-row"><span class="set-ic">🔄</span><span class="set-lb" data-i18n="invert">عكس التحكّم</span><label class="toggle-switch"><input type="checkbox" id="set-invert" onchange="toggleInvert()"/><span class="slider"></span></label></div>
         <div class="set-row" id="set-haptics-card"><span class="set-ic">📳</span><span class="set-lb" data-i18n="haptics">الاهتزاز</span><label class="toggle-switch"><input type="checkbox" id="set-haptics" onchange="toggleHaptics()" checked/><span class="slider"></span></label></div>
       </div>
       <button class="main-btn" onclick="closeSettings()" data-i18n="close">إغلاق</button>

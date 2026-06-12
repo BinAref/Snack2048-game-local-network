@@ -544,11 +544,43 @@ body::after {
   display: flex; align-items: center; justify-content: center; }
 .stored-btn:active { transform: translateY(2px); }
 .stored-btn .cnt { position: absolute; bottom: -4px; right: -4px; min-width: 17px; height: 17px; line-height: 17px; font-size: 11px; font-weight: 800; color: #fff; background: #ff3b3b; border-radius: 50%; text-align: center; }
-/* المشاهدة بعد الموت */
-#over-screen.overlay { background: rgba(7,13,25,0.55); }
-#spectate-bar { position: fixed; bottom: calc(16px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 12; display: flex; gap: 10px; }
-#spectate-bar.hidden { display: none; }
-#spectate-bar .ghost-btn { margin: 0; padding: 8px 16px; }
+/* ===== شاشة النهاية / المشاهدة (غير حاجبة) ===== */
+#over-hud { position: fixed; inset: 0; z-index: 16; pointer-events: none; }
+#over-hud.hidden { display: none; }
+/* بطاقة النتيجة: علوية وسطية، أنيقة وشفّافة */
+#over-hud .over-card {
+  position: absolute; top: calc(14px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 10px 22px; border-radius: var(--radius-md);
+  background: rgba(7,13,25,0.62); border: 1px solid var(--border-neon);
+  box-shadow: var(--glow-blue); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+#over-hud .over-title { font-family: var(--font-display); font-weight: 900; font-size: 16px; letter-spacing: 1px; color: var(--neon-red); text-shadow: 0 0 10px rgba(255,59,59,0.5); }
+#over-hud .over-stats { display: flex; gap: 24px; }
+#over-hud .over-stat { display: flex; flex-direction: column; align-items: center; }
+#over-hud .os-label { font-size: 10px; color: var(--text-secondary); letter-spacing: .5px; }
+#over-hud .os-val { font-family: var(--font-data); font-weight: 800; font-size: 18px; color: var(--text-accent); }
+/* منطقة الأزرار: سفلية وسطية */
+#over-hud .over-actions {
+  position: absolute; bottom: calc(20px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 10px; width: min(92vw, 420px);
+}
+#over-hud .spectate-hint {
+  pointer-events: none; font-size: 12px; color: var(--text-secondary);
+  background: rgba(7,13,25,0.6); border: 1px solid var(--border-neon); border-radius: 999px; padding: 5px 14px; text-align: center;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+#over-hud .over-btns { display: flex; gap: 12px; pointer-events: auto; }
+#over-hud .over-btns .main-btn { margin: 0; padding: 12px 26px; }
+#over-hud .over-btns .ghost-btn { margin: 0; padding: 12px 22px; }
+
+/* أثناء المشاهدة: أخفِ إحصائيات اللاعب الميت، واجعل المتصدّرين قابلين للتمرير والاختيار */
+body.spectating #score-box, body.spectating #medal-badge { display: none; }
+body.spectating #leaderboard { cursor: default; }
+body.spectating #lb-list { max-height: min(46vh, 360px); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+body.spectating #lb-list li { cursor: pointer; padding: 3px 6px; border-radius: 6px; transition: background .15s; }
+body.spectating #lb-list li:hover { background: rgba(0,212,255,0.08); }
+#lb-list li.spec-target { background: rgba(0,212,255,0.16); color: var(--neon-blue); font-weight: 700; box-shadow: inset 0 0 0 1px var(--border-neon); }
 
 /* ===== تحكّم اللمس ===== */
 #boost-btn {
@@ -568,6 +600,15 @@ body.touch.in-game #boost-btn { display: flex; }
 #joystick.hidden { display: none; }
 #joystick-knob { position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; border-radius: 50%; transform: translate(-50%, -50%);
   background: radial-gradient(circle at 50% 35%, #cfeeff, var(--neon-blue)); box-shadow: 0 0 18px rgba(0,212,255,0.7); }
+
+/* ===== فصل واجهة الكمبيوتر عن الهاتف ===== */
+/* تلميحات مفاتيح لوحة المفاتيح تخصّ الكمبيوتر فقط — تُخفى على اللمس */
+body.touch .kbd { display: none !important; }
+.stored-btn .key { position: absolute; top: -6px; left: -6px; min-width: 16px; height: 16px; line-height: 16px; font-size: 10px; font-weight: 800; color: var(--bg-void); background: var(--neon-blue); border-radius: 4px; text-align: center; padding: 0 2px; }
+body.touch .stored-btn .key { display: none; }
+/* على اللمس: القوى المخزّنة (قنبلة/تجميد) في متناول الإبهام الأيمن (فوق زر السرعة) — اليسار للعصا */
+body.touch #stored { left: auto; right: calc(14px + env(safe-area-inset-right)); top: auto; bottom: calc(120px + env(safe-area-inset-bottom)); transform: none; }
+@media (orientation: portrait) { body.touch #stored { bottom: calc(20px + env(safe-area-inset-bottom)); } }
 
 /* ===== Keyframes ===== */
 @keyframes panel-in { from { opacity: 0; transform: scale(0.92) translateY(8px); } to { opacity: 1; transform: none; } }
@@ -596,6 +637,15 @@ body.touch.in-game #boost-btn { display: flex; }
   .panel > p { font-size: 12px; }
   #notifications { top: calc(50px + env(safe-area-inset-top)); }
   .notif { font-size: 12px; padding: 6px 12px; }
+
+  /* شاشة النهاية/المشاهدة على الهاتف */
+  #over-hud .over-card { padding: 7px 14px; gap: 4px; }
+  #over-hud .over-title { font-size: 13px; }
+  #over-hud .over-stats { gap: 18px; }
+  #over-hud .os-val { font-size: 15px; }
+  #over-hud .spectate-hint { font-size: 11px; padding: 4px 11px; }
+  #over-hud .over-btns .main-btn, #over-hud .over-btns .ghost-btn { padding: 11px 20px; font-size: 14px; }
+  body.spectating #lb-list { max-height: 38vh; }
 
   /* التعليمات كصفحة كاملة مريحة على الهاتف */
   .help-panel {
@@ -637,6 +687,14 @@ body.touch.in-game #boost-btn { display: flex; }
     flex-direction: row; gap: 5px; }
   .power-btn { width: 34px; height: 34px; font-size: 11px; }
   .power-btn .kbd { font-size: 8px; padding: 0 3px; }
+  /* المشاهدة في الأفقي القصير: ضغط البطاقة والأزرار وإخفاء التلميح لتوفير المساحة */
+  #over-hud .over-card { top: calc(6px + env(safe-area-inset-top)); padding: 5px 12px; gap: 2px; }
+  #over-hud .over-title { font-size: 12px; }
+  #over-hud .over-stats { gap: 14px; }
+  #over-hud .os-val { font-size: 14px; }
+  #over-hud .over-actions { bottom: calc(10px + env(safe-area-inset-bottom)); gap: 6px; }
+  #over-hud .spectate-hint { display: none; }
+  body.spectating #lb-list { max-height: 60vh; }
 }
 
 /* احترام تقليل الحركة */
