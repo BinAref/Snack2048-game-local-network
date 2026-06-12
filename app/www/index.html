@@ -72,7 +72,7 @@
       <div class="corner-cluster end-cluster">
         <button id="menu-fab" class="menu-fab" onclick="toggleSideMenu()" aria-label="menu">☰</button>
         <div class="end-items">
-          <button id="profile-btn" class="corner-btn" onclick="closeSideMenu();openProfile()" data-i18n-title="profile">👤</button>
+          <!-- ترتيب DOM لـ RTL: اللغة ثم الملف، ثم ؟ ثم الإعدادات → بصرياً (الملف | اللغة) و(الإعدادات | ؟) -->
           <div id="lang-dd" class="lang-dd">
             <button id="lang-btn" type="button" onclick="toggleLangMenu()">🌐 <span id="lang-current">EN</span></button>
             <div id="lang-menu" class="lang-menu hidden">
@@ -80,8 +80,9 @@
               <ul id="lang-list"></ul>
             </div>
           </div>
-          <button id="settings-btn" class="corner-btn" onclick="closeSideMenu();openSettings()" data-i18n-title="settings">⚙️</button>
+          <button id="profile-btn" class="corner-btn" onclick="closeSideMenu();openProfile()" data-i18n-title="profile">👤</button>
           <button id="help-btn" class="corner-btn" onclick="closeSideMenu();openHelp()" data-i18n-title="help">❓</button>
+          <button id="settings-btn" class="corner-btn" onclick="closeSideMenu();openSettings()" data-i18n-title="settings">⚙️</button>
         </div>
       </div>
 
