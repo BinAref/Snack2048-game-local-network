@@ -2203,7 +2203,8 @@
       const r = document.getElementById("lang-btn").getBoundingClientRect();
       const mw = Math.min(260, window.innerWidth - 16);
       const rtl = document.documentElement.dir === "rtl";
-      let left = rtl ? (r.right - mw) : r.left;
+      const shift = mw * 0.5 + 20; // إزاحة نحو منتصف القائمة بنصف عرض الدرب‑داون وأكثر قليلاً
+      let left = rtl ? (r.right - mw - shift) : (r.left + shift);
       left = Math.max(8, Math.min(left, window.innerWidth - mw - 8));
       const below = window.innerHeight - r.bottom - 12, above = r.top - 12, openUp = below < 200 && above > below;
       m.style.position = "fixed"; m.style.left = left + "px"; m.style.width = mw + "px";
