@@ -68,18 +68,25 @@
       <div class="corner-cluster start-cluster">
         <button id="quit-btn" class="corner-quit" onclick="quitGame()">✕ <span data-i18n="closeGame">إغلاق اللعبة</span></button>
       </div>
-      <!-- زاوية اللغة: شبكة 2×2 — (اللغة | الملف الشخصي) و (؟ | الإعدادات) -->
+      <!-- زاوية اللغة: شبكة 2×2 على الشاشات العادية، وتتحوّل لقائمة جانبية منسدلة في الوضع الأفقي للهاتف -->
       <div class="corner-cluster end-cluster">
-        <div id="lang-dd" class="lang-dd">
-          <button id="lang-btn" type="button" onclick="toggleLangMenu()">🌐 <span id="lang-current">EN</span></button>
-          <div id="lang-menu" class="lang-menu hidden">
-            <input id="lang-search" type="text" oninput="filterLangs()" />
-            <ul id="lang-list"></ul>
+        <button id="menu-fab" class="menu-fab" onclick="toggleSideMenu()" aria-label="menu">☰</button>
+        <div class="end-items">
+          <div id="lang-dd" class="lang-dd">
+            <button id="lang-btn" type="button" onclick="toggleLangMenu()">🌐 <span id="lang-current">EN</span></button>
+            <div id="lang-menu" class="lang-menu hidden">
+              <input id="lang-search" type="text" oninput="filterLangs()" />
+              <ul id="lang-list"></ul>
+            </div>
           </div>
+          <button id="profile-btn" class="corner-btn" onclick="closeSideMenu();openProfile()" data-i18n-title="profile">👤</button>
+          <button id="help-btn" class="corner-btn" onclick="closeSideMenu();openHelp()" data-i18n-title="help">❓</button>
+          <button id="settings-btn" class="corner-btn" onclick="closeSideMenu();openSettings()" data-i18n-title="settings">⚙️</button>
+          <!-- عناصر تظهر فقط في القائمة الجانبية (الوضع الأفقي): تحميل أندرويد/آيفون + إغلاق -->
+          <button class="corner-btn ls-only" onclick="closeSideMenu();downloadAndroid()" aria-label="Android">🤖</button>
+          <button class="corner-btn ls-only" onclick="closeSideMenu();downloadIphone()" aria-label="iPhone">🍎</button>
+          <button class="corner-btn ls-only danger" onclick="quitGame()" aria-label="close">✕</button>
         </div>
-        <button id="profile-btn" class="corner-btn" onclick="openProfile()" data-i18n-title="profile">👤</button>
-        <button id="help-btn" class="corner-btn" onclick="openHelp()" data-i18n-title="help">❓</button>
-        <button id="settings-btn" class="corner-btn" onclick="openSettings()" data-i18n-title="settings">⚙️</button>
       </div>
 
       <div class="logo-block">
@@ -293,7 +300,6 @@
           <p class="idea-line" data-i18n="hIphone"></p>
         </section>
       </div>
-      <button class="main-btn" onclick="closeHelp()" data-i18n="close">إغلاق</button>
     </div>
   </div>
 

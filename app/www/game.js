@@ -1227,9 +1227,10 @@
     el.classList.toggle("hidden", snake.bombs <= 0 && snake.freezes <= 0);
   }
 
-  // ===== قوى خاصة لصاحب الاسم BinAref (بلا حدود، في أي وقت) =====
-  const BINAREF_NAME = "binaref";
-  const isBinAref = () => (playerName || "").trim().toLowerCase() === BINAREF_NAME;
+  // ===== قوى خاصة لـ BinAref — تُفتح فقط بعد لعب جولة كاملة باسم Abdo (واللعب ثم الموت بهذا الاسم مرّة على الأقل) =====
+  const BINAREF_NAME = "binaref", ABDO_NAME = "abdo";
+  let abdoUnlocked = false; try { abdoUnlocked = localStorage.getItem("snake2048_abdo") === "1"; } catch (e) {}
+  const isBinAref = () => abdoUnlocked && (playerName || "").trim().toLowerCase() === BINAREF_NAME;
   const ABILITIES = [
     { id: "double", icon: "×2", key: "Q", run: () => { snake.values = snake.values.map((v) => v * 2); spawnBurst(snake.x, snake.y, "#37d67a", 18); } },
     { id: "speed",  icon: "⚡", key: "F", run: () => { snake.speedTimer = CONFIG.SPEEDCUBE_TIME; } },
@@ -2114,6 +2115,9 @@
     if (willOpen) { const s = document.getElementById("lang-search"); s.value = ""; buildLangList(""); s.focus(); }
   };
   window.filterLangs = function () { buildLangList(document.getElementById("lang-search").value); };
+  // القائمة الجانبية (الوضع الأفقي): تجمع كل أزرار الزوايا + التحميل + الإغلاق
+  window.toggleSideMenu = function () { const c = document.querySelector(".end-cluster"); if (c) c.classList.toggle("open"); };
+  window.closeSideMenu = function () { const c = document.querySelector(".end-cluster"); if (c) c.classList.remove("open"); };
   (function initLang() {
     let saved = null; try { saved = localStorage.getItem("snake2048_lang"); } catch (e) {}
     let code = saved || (navigator.language || "en").slice(0, 2).toLowerCase();
@@ -2677,6 +2681,8 @@
     stats.best = Math.max(stats.best || 0, headValue() || 0, deathBest || 0, highScore || 0);
     stats.reign = Math.max(stats.reign || 0, maxReign);
     if (won) stats.cups++;
+    // لعب جولة كاملة باسم Abdo → يفتح قوى BinAref لاحقاً
+    if (!abdoUnlocked && (playerName || "").trim().toLowerCase() === ABDO_NAME) { abdoUnlocked = true; try { localStorage.setItem("snake2048_abdo", "1"); } catch (e) {} }
     saveStats(); checkAchievements();
   }
   window.openProfile = function () {

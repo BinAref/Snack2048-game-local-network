@@ -278,24 +278,25 @@ body::after {
 
 /* ===== شعار وعنوان المنيو ===== */
 .menu-panel { padding-top: 34px; }
-.logo-block { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 16px; }
+/* الشعار والاسم جنباً إلى جنب (لوكاب أفقي) */
+.logo-block { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 16px; margin-bottom: 18px; }
 .logo-ring {
-  width: 86px; height: 86px; border-radius: 50%;
+  width: 76px; height: 76px; border-radius: 50%; flex: 0 0 auto;
   display: flex; align-items: center; justify-content: center;
   background: radial-gradient(circle, rgba(0,212,255,0.20), transparent 70%);
   box-shadow: inset 0 0 28px rgba(0,212,255,0.35), 0 0 26px rgba(0,212,255,0.30);
   animation: float-y 4s ease-in-out infinite;
 }
 .snake-logo { filter: drop-shadow(0 0 8px rgba(0,212,255,0.65)); }
-.game-title { display: flex; flex-direction: column; align-items: center; line-height: 0.95; animation: flicker 8s ease-in-out infinite; }
+.game-title { display: flex; flex-direction: column; align-items: flex-start; line-height: 0.92; animation: flicker 8s ease-in-out infinite; }
 .game-title .t-snake {
-  font-family: var(--font-display); font-weight: 900; font-size: 46px; letter-spacing: 4px;
+  font-family: var(--font-display); font-weight: 900; font-size: 40px; letter-spacing: 3px;
   background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
   filter: drop-shadow(0 0 16px rgba(0,212,255,0.6));
 }
 .game-title .t-2048 {
-  font-family: var(--font-display); font-weight: 900; font-size: 30px; letter-spacing: 8px;
+  font-family: var(--font-display); font-weight: 900; font-size: 27px; letter-spacing: 7px;
   color: var(--neon-gold); text-shadow: var(--glow-gold);
 }
 
@@ -303,12 +304,17 @@ body::after {
 /* مجموعات الزوايا */
 .corner-cluster { position: absolute; top: 14px; z-index: 6; display: flex; }
 .start-cluster { inset-inline-start: 14px; flex-direction: row; gap: 8px; align-items: center; }
-.end-cluster { inset-inline-end: 14px; display: grid; grid-template-columns: auto auto; gap: 8px; justify-items: end; align-items: start; }
+.end-cluster { inset-inline-end: 14px; }
+.end-items { display: grid; grid-template-columns: auto auto; gap: 8px; justify-items: end; align-items: start; }
 .end-row { display: flex; gap: 8px; align-items: center; }
+.menu-fab { display: none; width: 40px; height: 36px; border-radius: var(--radius-sm); border: 1px solid var(--border-neon); background: rgba(0,212,255,0.12); color: var(--text-primary); font-size: 18px; cursor: pointer; align-items: center; justify-content: center; }
 .corner-btn { width: 38px; height: 34px; border-radius: var(--radius-sm); flex: 0 0 auto;
   background: rgba(0,212,255,0.08); border: 1px solid var(--border-neon); color: var(--text-accent); font-size: 16px; cursor: pointer;
   display: flex; align-items: center; justify-content: center; }
 .corner-btn:hover { background: rgba(0,212,255,0.18); box-shadow: var(--glow-blue); }
+.corner-btn.ls-only { display: none; } /* عناصر القائمة الجانبية: تظهر فقط في الوضع الأفقي */
+.corner-btn.danger { border-color: rgba(255,80,80,0.5); color: #ff8a8a; }
+.corner-btn.danger:hover { background: rgba(255,48,48,0.16); }
 .corner-quit { padding: 7px 11px; font-size: 12px; border-radius: var(--radius-sm); flex: 0 0 auto;
   border: 1px solid var(--neon-red); color: var(--neon-red); background: rgba(255,48,48,0.07); cursor: pointer; white-space: nowrap;
   display: flex; align-items: center; justify-content: center; gap: 4px; text-align: center; }
@@ -320,11 +326,11 @@ body::after {
 /* لوحة التعليمات */
 .help-panel { max-width: 560px; max-height: 88vh; display: flex; flex-direction: column; text-align: start; }
 .help-panel h1 { text-align: center; }
-.close-x { position: absolute; top: 12px; inset-inline-end: 14px; background: transparent; border: none; color: var(--text-secondary); font-size: 20px; cursor: pointer; z-index: 2; }
-.close-x:hover { color: var(--neon-red); }
-.help-body { overflow-y: auto; margin: 10px 0 16px; padding-inline-end: 4px; }
-.help-body section { margin-bottom: 16px; }
-.help-body h3 { font-family: var(--font-display); font-size: 14px; color: var(--neon-blue); letter-spacing: 1px; margin-bottom: 8px; text-shadow: 0 0 8px rgba(0,212,255,0.4); }
+.close-x { position: absolute; top: 10px; inset-inline-end: 12px; width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,0.06); border: 1px solid var(--border-neon); color: var(--text-secondary); font-size: 18px; cursor: pointer; z-index: 3; display: flex; align-items: center; justify-content: center; }
+.close-x:hover { color: var(--neon-red); border-color: var(--neon-red); background: rgba(255,59,59,0.12); }
+.help-body { overflow-y: auto; margin: 14px 0 2px; padding-inline-end: 6px; }
+.help-body section { margin-bottom: 12px; background: rgba(255,255,255,0.025); border: 1px solid rgba(0,212,255,0.12); border-radius: 12px; padding: 12px 14px; }
+.help-body h3 { font-family: var(--font-display); font-size: 14px; color: var(--neon-blue); letter-spacing: 1px; margin-bottom: 10px; text-shadow: 0 0 8px rgba(0,212,255,0.4); }
 .help-body p { font-size: 14px; line-height: 1.9; color: var(--text-primary); }
 .idea-line { background: rgba(0,212,255,0.05); border-inline-start: 3px solid var(--neon-blue); border-radius: 8px; padding: 8px 12px; }
 
@@ -400,13 +406,14 @@ body::after {
 .shape-btn { width: 42px; height: 42px; border-radius: var(--radius-sm); border: 2px solid var(--border-neon); background: rgba(0,212,255,0.05); font-size: 20px; cursor: pointer; line-height: 1; flex-shrink: 0; }
 .shape-btn.active { border-color: var(--neon-blue); background: rgba(0,212,255,0.16); box-shadow: var(--glow-blue); }
 .shape-btn:hover:not(.active) { background: rgba(0,212,255,0.1); }
+/* القسم المنسدل للأشكال: بعرض وموضع زر «ابدأ اللعب» نفسه (يملأ صفّ ai-shape-row)، وأشكال صغيرة في صفّ واحد */
 #shape-options {
-  position: absolute; top: 116%; inset-inline-end: 0; inset-inline-start: auto; z-index: 8;
-  display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center;
-  background: var(--bg-surface); border: 1px solid var(--border-glow); border-radius: 12px;
-  padding: 8px; box-shadow: var(--glow-blue), 0 12px 30px rgba(0,0,0,0.5);
-  width: max-content; max-width: min(82vw, 320px);
+  position: absolute; top: calc(100% + 8px); inset-inline-start: 0; inset-inline-end: 0; z-index: 8;
+  display: flex; flex-wrap: nowrap; gap: 6px; align-items: center; justify-content: center;
+  background: var(--bg-surface); border: 1px solid var(--border-glow); border-radius: var(--radius-sm);
+  padding: 7px 8px; box-shadow: var(--glow-blue), 0 12px 30px rgba(0,0,0,0.5);
 }
+#shape-options .shape-btn { width: 34px; height: 34px; font-size: 16px; }
 #shape-options.hidden { display: none; }
 
 /* وضع منفرد / جماعي */
@@ -438,9 +445,9 @@ body::after {
 .toggle-row { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .ai-row { margin-bottom: 14px; }
 /* البوتات + الشكل جنباً إلى جنب */
-.ai-shape-row { display: flex; gap: 12px; align-items: center; justify-content: center; margin-bottom: 14px; flex-wrap: wrap; }
+.ai-shape-row { display: flex; gap: 12px; align-items: center; justify-content: center; margin-bottom: 14px; flex-wrap: wrap; position: relative; }
 .ai-shape-row .ai-row { margin-bottom: 0; }
-.ai-shape-row #shape-dd { margin-bottom: 0; }
+.ai-shape-row #shape-dd { margin-bottom: 0; position: static; }
 .toggle-label { color: var(--text-secondary); font-size: 14px; }
 .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; }
 .toggle-switch input { opacity: 0; width: 0; height: 0; }
@@ -464,6 +471,7 @@ body::after {
 .copy-txt-btn:hover { background: rgba(0,212,255,0.24); }
 
 /* صف اللصق/الانضمام — ارتفاع موحّد وتمركز سليم */
+#section-join { width: 100%; background: rgba(0,212,255,0.04); border: 1px solid rgba(0,212,255,0.14); border-radius: var(--radius-sm); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
 .join-row { display: flex; gap: 8px; align-items: center; }
 .input-wrap { position: relative; flex: 1; min-width: 0; }
 .input-wrap input {
@@ -519,9 +527,9 @@ body::after {
 .pause-panel { max-width: 320px; }
 .pause-actions { display: flex; flex-direction: column; gap: 14px; margin-top: 22px; }
 .pause-actions .ghost-btn { margin-bottom: 0; }
-.pause-toggles { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+.pause-toggles { display: flex; gap: 12px; justify-content: center; align-items: center; flex-wrap: nowrap; }
 .pause-toggles .toggle-row { margin-bottom: 0; }
-.pause-sound-btn { margin: 0; padding: 8px 16px; }
+.pause-sound-btn { margin: 0; padding: 8px 14px; white-space: nowrap; }
 .over-menu { margin-top: 10px; margin-bottom: 0; }
 
 /* إخفاء قسم الانضمام عند القفل */
@@ -638,6 +646,11 @@ body.touch #stored { left: auto; right: calc(14px + env(safe-area-inset-right));
   .panel { padding: 22px 18px 18px; border-radius: var(--radius-md); }
   .panel h1 { font-size: 24px; }
   .panel > p { font-size: 12px; }
+  /* لوكاب الشعار/الاسم على الهاتف (جنباً إلى جنب وبحجم مناسب) */
+  .logo-block { gap: 12px; margin-bottom: 12px; }
+  .logo-ring { width: 64px; height: 64px; }
+  .game-title .t-snake { font-size: 34px; letter-spacing: 2px; }
+  .game-title .t-2048 { font-size: 22px; letter-spacing: 6px; }
   #notifications { top: calc(50px + env(safe-area-inset-top)); }
   .notif { font-size: 12px; padding: 6px 12px; }
 
@@ -703,14 +716,32 @@ body.touch #stored { left: auto; right: calc(14px + env(safe-area-inset-right));
   /* القائمة في الأفقي القصير: قابلة للتمرير ومضغوطة (الشعار صفّاً) */
   .overlay { align-items: flex-start; }
   .menu-panel { max-height: 96vh; overflow-y: auto; padding: 12px 18px; }
-  .menu-panel .logo-block { flex-direction: row; gap: 12px; margin-bottom: 8px; }
-  .menu-panel .logo-ring { transform: scale(0.66); margin: -8px; }
-  .menu-panel .game-title { font-size: 22px; }
+  .menu-panel .logo-block { gap: 12px; margin-bottom: 8px; }
+  .menu-panel .logo-ring { transform: scale(0.7); margin: -6px; }
+  .menu-panel .game-title .t-snake { font-size: 30px; }
+  .menu-panel .game-title .t-2048 { font-size: 20px; letter-spacing: 5px; }
   .menu-panel #name-input { margin: 4px 0; }
   .menu-panel .ai-shape-row { margin: 6px 0; }
   .menu-panel #mode-switch { margin: 6px 0; }
-  .menu-panel .dl-game-btn { margin: 2px 0 6px; }
-  .end-cluster, .start-cluster { top: 8px; }
+
+  /* كل أزرار الزوايا تتجمّع في قائمة جانبية منسدلة (☰) */
+  .start-cluster { display: none; }
+  .menu-panel > .dl-game-btn { display: none; } /* التحميل صار داخل القائمة الجانبية */
+  .end-cluster { position: fixed; top: calc(8px + env(safe-area-inset-top)); inset-inline-end: calc(8px + env(safe-area-inset-right)); z-index: 22; }
+  .menu-fab { display: flex; }
+  .end-items {
+    display: none; position: absolute; top: calc(100% + 6px); inset-inline-end: 0;
+    flex-direction: column; gap: 6px; padding: 8px; min-width: 66px;
+    background: var(--bg-card); border: 1px solid var(--border-neon); border-radius: var(--radius-sm);
+    box-shadow: var(--glow-blue), 0 12px 30px rgba(0,0,0,0.55);
+  }
+  .end-cluster.open .end-items { display: flex; align-items: stretch; }
+  .corner-btn.ls-only { display: flex; }
+  .end-items .corner-btn { width: 100%; height: 38px; }
+  .end-items .lang-dd, .end-items #lang-btn { width: 100%; }
+  .end-items #lang-btn { height: 38px; justify-content: center; }
+  /* قائمة اللغات تُعرض موسّطة كي لا تُقصّ داخل القائمة الجانبية الصغيرة */
+  .end-items #lang-menu { position: fixed; top: 50%; inset-inline-start: 50%; inset-inline-end: auto; transform: translate(-50%, -50%); width: min(86vw, 320px); }
 }
 
 /* احترام تقليل الحركة */
