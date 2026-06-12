@@ -8,7 +8,8 @@
   let musicVol = 0.9, sfxVol = 0.9, mutedAll = false; // أحجام منفصلة + كتم رئيسي
   try { const m = parseFloat(localStorage.getItem("snake2048_musicv")); if (!isNaN(m)) musicVol = m; } catch (e) {}
   try { const s = parseFloat(localStorage.getItem("snake2048_sfxv")); if (!isNaN(s)) sfxVol = s; } catch (e) {}
-  try { mutedAll = localStorage.getItem("snake2048_mute") === "1"; } catch (e) {}
+  // لم يعد هناك زرّ كتم منفصل — أزِل أي كتم عالق محفوظ سابقاً (كان يُسكت كل الصوت)
+  try { localStorage.removeItem("snake2048_mute"); } catch (e) {} mutedAll = false;
   let musicTimer = null, mi = 0, musicMode = null; // "game" | "menu" | null
 
   function ensure() {

@@ -83,6 +83,9 @@ body::after {
 ::-webkit-scrollbar-thumb { background: linear-gradient(var(--neon-blue), var(--neon-purple)); border-radius: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 
+/* ===== الأداء: إلغاء البلور الخلفي تماماً — كان يُعاد حسابه كل إطار فوق الكانفس الحيّ (الخلفية المتحرّكة) ويسبّب تعليقاً شديداً واختفاء الأشكال ===== */
+*, *::before, *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+
 /* ===== أدوات عامة ===== */
 .glass-card {
   background: var(--bg-card);
@@ -154,6 +157,12 @@ body::after {
 #medal-badge.hidden { display: none; }
 #medal-icon { font-size: 18px; }
 #medal-name { font-family: var(--font-data); color: var(--neon-gold); font-size: 13px; font-weight: 700; }
+/* الميدالية الخرافية: بنفسجي + ذهبي متحرّك */
+@keyframes mythic-glow { 0%,100% { border-color: #c77dff; box-shadow: 0 0 22px rgba(199,125,255,0.7), 0 0 8px #c77dff; } 50% { border-color: #ffd23f; box-shadow: 0 0 24px rgba(255,210,63,0.75), 0 0 9px #ffd23f; } }
+#medal-badge.medal-mythic { animation: mythic-glow 1.2s ease-in-out infinite; }
+#medal-badge.medal-mythic #medal-icon { animation: mythic-icon 1.2s ease-in-out infinite; }
+#medal-badge.medal-mythic #medal-name { color: #e9c0ff; }
+@keyframes mythic-icon { 0%,100% { filter: drop-shadow(0 0 6px #c77dff); transform: scale(1); } 50% { filter: drop-shadow(0 0 9px #ffd23f); transform: scale(1.14); } }
 
 /* رمز الغرفة (HUD) */
 #room-code-hud {
@@ -553,8 +562,12 @@ body::after {
 .status-msg.error { color: var(--neon-red); text-shadow: 0 0 8px rgba(255,48,48,0.4); }
 
 /* ===== شاشة الفوز ===== */
-.trophy { font-size: 56px; margin-bottom: 4px; filter: drop-shadow(0 0 16px rgba(243,156,18,0.7)); }
-.winner-name { font-family: var(--font-display); font-size: 24px !important; font-weight: 900; color: var(--neon-gold) !important; margin-bottom: 10px !important; text-shadow: var(--glow-gold); }
+/* الكأس: أسود على أحمر بشكل رهيب */
+#win-screen .panel { border-color: #ff2b2b; background: radial-gradient(ellipse at top, rgba(45,0,0,0.94), rgba(6,2,2,0.96)); box-shadow: 0 0 44px rgba(255,43,43,0.5), 0 24px 64px rgba(0,0,0,0.75); }
+#win-screen h1 { background: linear-gradient(135deg, #ff2b2b, #ff7a00); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 12px rgba(255,43,43,0.65)); }
+.trophy { font-size: 66px; margin-bottom: 4px; filter: drop-shadow(0 0 18px rgba(255,43,43,0.85)); animation: cup-pulse 1.4s ease-in-out infinite; }
+@keyframes cup-pulse { 0%,100% { transform: scale(1); filter: drop-shadow(0 0 16px rgba(255,43,43,0.8)); } 50% { transform: scale(1.13); filter: drop-shadow(0 0 28px rgba(255,90,0,0.95)); } }
+.winner-name { font-family: var(--font-display); font-size: 24px !important; font-weight: 900; color: #ff5a5a !important; margin-bottom: 10px !important; text-shadow: 0 0 12px rgba(255,43,43,0.6); }
 
 /* ===== شاشة الإيقاف ===== */
 .pause-panel { max-width: 320px; }
@@ -564,7 +577,8 @@ body::after {
 .pause-actions { display: flex; flex-direction: column; gap: 14px; margin-top: 22px; }
 .pause-actions .ghost-btn { margin-bottom: 0; }
 .pause-toggles { display: flex; gap: 10px; justify-content: center; align-items: stretch; flex-wrap: nowrap; }
-.pause-toggles .ai-row, .pause-sound-btn { flex: 1 1 0; min-width: 0; } /* عرض متساوٍ بين سويتش البوتات وزر الصوت */
+.pause-toggles .ai-row { flex: 2 1 0; min-width: 0; }     /* سويتش/نص أعداء AI أعرض */
+.pause-toggles .pause-sound-btn { flex: 1 1 0; min-width: 0; } /* زر الصوت أصغر (النصف تقريباً) */
 .pause-toggles .toggle-row { margin-bottom: 0; justify-content: center; }
 .pause-sound-btn { margin: 0; padding: 7px 10px; font-size: 12px; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 5px; }
 .over-menu { margin-top: 10px; margin-bottom: 0; }

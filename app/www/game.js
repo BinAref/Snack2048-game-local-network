@@ -54,10 +54,10 @@
     { icon: "🥉", name: "برونزية" },
     { icon: "🥈", name: "فضية" },
     { icon: "🥇", name: "ذهبية" },
-    { icon: "💎", name: "أسطورية" },
-    { icon: "🔥", name: "خرافية" },
-    { icon: "♾️", name: "لا نهائية" },
+    { icon: "🟣", name: "أسطورية" },   // أسطوري: بنفسجي
+    { icon: "🟣", name: "خرافية" },    // خرافي: بنفسجي + ذهبي متحرّك (المستوى الأخير → الكأس)
   ];
+  const MEDAL_TOP = 5; // أعلى ميدالية (خرافية) → الفوز بالكأس (أُزيلت اللانهائية)
 
   // =====================================================================
   // Canvas
@@ -1149,26 +1149,28 @@
       medal.reign += dt;
       if (medal.reign >= CONFIG.REIGN_STEP) {
         medal.reign = 0;
-        if (medal.level < 6) medal.level++;
+        if (medal.level < MEDAL_TOP) medal.level++;
         const m = MEDALS[medal.level];
-        if (leader.id === myId && medal.level >= 1 && medal.level <= 6) { stats.medals[medal.level] = (stats.medals[medal.level] || 0) + 1; saveStats(); checkAchievements(); } // اللاعب حاز ميدالية من هذا النوع
+        if (leader.id === myId && medal.level >= 1 && medal.level <= MEDAL_TOP) { stats.medals[medal.level] = (stats.medals[medal.level] || 0) + 1; saveStats(); checkAchievements(); } // اللاعب حاز ميدالية من هذا النوع
         const msg = "🏅 " + leader.name + " " + m.icon;
         notify(msg);
         if (isHost) { hostBroadcast({ t: "notify", text: msg }); hostBroadcast({ t: "medal", level: medal.level, leaderId: medal.leaderId, leaderName: medal.leaderName }); }
-        if (medal.level === 6) { doWin(leader.name, leader.id); return; }
+        if (medal.level === MEDAL_TOP) { doWin(leader.name, leader.id); return; } // أعلى ميدالية → الكأس
         advanceMap();
       }
     }
     updateMedalBadge();
   }
-  const MEDAL_COLORS = [null, "#CD7F32", "#C0C0C0", "#FFD23F", "#5FF0E0", "#FF6B3D", "#FF2EE6"];
+  const MEDAL_COLORS = [null, "#CD7F32", "#C0C0C0", "#FFD23F", "#9b5cff", "#c77dff"]; // أسطوري/خرافي بنفسجي
   function updateMedalBadge() {
     const badge = document.getElementById("medal-badge");
     if (medal.level > 0) {
       badge.classList.remove("hidden");
       const c = MEDAL_COLORS[medal.level] || "#FFD23F";
-      badge.style.borderColor = c;
-      badge.style.boxShadow = `0 0 20px ${c}88, 0 0 6px ${c}`;
+      const mythic = medal.level === MEDAL_TOP;
+      badge.classList.toggle("medal-mythic", mythic); // الخرافي: بنفسجي+ذهبي متحرّك (CSS)
+      badge.style.borderColor = mythic ? "" : c;
+      badge.style.boxShadow = mythic ? "" : `0 0 20px ${c}88, 0 0 6px ${c}`;
       document.getElementById("medal-icon").textContent = MEDALS[medal.level].icon;
       const nm = document.getElementById("medal-name");
       nm.textContent = medal.leaderName || ""; nm.style.color = c;
@@ -1508,7 +1510,7 @@
   // مستوى الصعوبة الزمني: 0 سهل … 5 كابوس (كل 5 دقائق)
   const aiTier = () => clamp(Math.floor(playTime / 300), 0, 5);
   // قدرة البوت ترتفع مع المستوى (الميداليات 0..6): أضعف من اللاعب في البداية، وتساويه عند آخر مستوى
-  const botAbility = () => clamp(medal.level / 6, 0, 1);
+  const botAbility = () => clamp(medal.level / MEDAL_TOP, 0, 1);
   const botSpeedFrac = () => lerp(0.45, 1, botAbility());   // مدة قوة السرعة (أقصر للبوت)
   const botStaminaFrac = () => lerp(0.4, 1, botAbility());  // سرعة تجدّد الطاقة (أبطأ للبوت)
   const botDrainFrac = () => lerp(1.8, 1, botAbility());    // استهلاك الاندفاع (أسرع للبوت)
@@ -1543,9 +1545,23 @@
     for (let k = 0; k < 40; k++) { const p = freePos(2); let md = 1e9; for (const h of hs) md = Math.min(md, Math.hypot(p.x - h.x, p.y - h.y)); if (md > bestD) { bestD = md; best = p; } }
     return best || freePos(2);
   }
-  // إعادة إحياء البوت نفسه (يحتفظ بالاسم/اللون/الهوية) كأنّه لاعب يبدأ من جديد
+  // مستوى عودة البوت حسب المتصدّرين: 10% كالأول، 20% الثاني، 30% الثالث، 40% الرابع (ومن لا يوجد: نصف السابق)
+  function respawnTargetValue() {
+    const ents = [];
+    if (state === "playing") ents.push(headValue());
+    for (const b of bots.values()) if (b.alive) ents.push(b.values[0]);
+    for (const r of remotes.values()) if (r.x != null) ents.push(r.head || 2);
+    ents.sort((a, c) => c - a);
+    const leaderVal = ents[0] || 4, targets = [];
+    for (let t = 0; t < 4; t++) targets[t] = ents[t] != null ? ents[t] : Math.max(2, Math.round((targets[t - 1] || leaderVal) / 2));
+    const roll = Math.random() * 100, tier = roll < 10 ? 0 : roll < 30 ? 1 : roll < 60 ? 2 : 3;
+    return Math.max(2, Math.pow(2, Math.round(log2(targets[tier] || 4))));
+  }
+  // إعادة إحياء البوت نفسه (يحتفظ بالاسم/اللون/الهوية) بمستوى مناسب للمتصدّرين (ليس من الصفر)
   function respawnBot(bot) {
-    bot.values = makeBot({ strength: bot.spawnStrength }).values; // قيم بداية جديدة فقط (مكان رخيص يُستبدَل أدناه)
+    const top = respawnTargetValue(), values = [top]; let v = top;
+    while (v > 2 && values.length < 5) { v /= 2; values.push(v); }
+    bot.values = values.map((x) => Math.max(2, x));
     const p = bot.challenger ? farFromPlayers() : freePos(2);
     bot.x = p.x; bot.y = p.y; bot.path = [{ x: p.x, y: p.y }];
     bot.angle = rand(0, Math.PI * 2); bot.desiredAngle = bot.angle;
@@ -2183,15 +2199,17 @@
     m.classList.toggle("hidden");
     if (willOpen) {
       const s = document.getElementById("lang-search"); s.value = ""; buildLangList(""); // بلا تركيز تلقائي على البحث
-      // درب‑داون مباشرة تحت الزر، محاذاةً لحافته القريبة من القراءة، وداخل الشاشة
+      // درب‑داون ملاصقة للزر، محاذاةً لحافته القريبة من القراءة، وتنقلب للأعلى إن لم يكفِ الأسفل
       const r = document.getElementById("lang-btn").getBoundingClientRect();
       const mw = Math.min(260, window.innerWidth - 16);
       const rtl = document.documentElement.dir === "rtl";
       let left = rtl ? (r.right - mw) : r.left;
       left = Math.max(8, Math.min(left, window.innerWidth - mw - 8));
-      m.style.position = "fixed"; m.style.left = left + "px"; m.style.top = (r.bottom + 4) + "px";
-      m.style.width = mw + "px"; m.style.insetInlineStart = "auto"; m.style.insetInlineEnd = "auto";
-      m.style.transform = "none"; m.style.maxHeight = Math.max(140, window.innerHeight - r.bottom - 18) + "px";
+      const below = window.innerHeight - r.bottom - 12, above = r.top - 12, openUp = below < 200 && above > below;
+      m.style.position = "fixed"; m.style.left = left + "px"; m.style.width = mw + "px";
+      m.style.insetInlineStart = "auto"; m.style.insetInlineEnd = "auto"; m.style.transform = "none";
+      if (openUp) { m.style.top = "auto"; m.style.bottom = (window.innerHeight - r.top + 4) + "px"; m.style.maxHeight = Math.max(140, above) + "px"; }
+      else { m.style.bottom = "auto"; m.style.top = (r.bottom + 4) + "px"; m.style.maxHeight = Math.max(140, below) + "px"; }
     }
   };
   window.closeLangMenu = function () { const m = document.getElementById("lang-menu"); if (m) m.classList.add("hidden"); };
@@ -2790,7 +2808,7 @@
     // الملك (الصدارة المتواصلة): 6،15،30،60 دقيقة
     { type: "king", v: 360, icon: "👑" }, { type: "king", v: 900, icon: "👑" }, { type: "king", v: 1800, icon: "👑" }, { type: "king", v: 3600, icon: "👑" },
     // الميداليات: لكل نوع (1..6) عدد 1،5،10،30،50 — كل نوع في صفّ، تظهر الصفوف بالتدريج
-    ...[1, 2, 3, 4, 5, 6].flatMap((lvl) => [1, 5, 10, 30, 50].map((v) => ({ type: "medal", lvl, v, icon: MEDALS[lvl].icon }))),
+    ...[1, 2, 3, 4, 5].flatMap((lvl) => [1, 5, 10, 30, 50].map((v) => ({ type: "medal", lvl, v, icon: MEDALS[lvl].icon }))),
     // الكؤوس
     { type: "cup", v: 1, icon: "🏆" }, { type: "cup", v: 5, icon: "🏆" }, { type: "cup", v: 10, icon: "🥇" }, { type: "cup", v: 30, icon: "🥇" }, { type: "cup", v: 50, icon: "🏆" },
   ];
@@ -2860,12 +2878,12 @@
     let html = "";
     for (const g of ["num", "kills", "games", "play", "king"]) html += renderRow(ACHIEVEMENTS.filter((a) => a.type === g));
     // الميداليات: كل نوع صفّ — يظهر صفّ النوع L إن كان L=1 أو حاز اللاعب ميدالية واحدة على الأقل من النوع السابق (كشف تدريجي)
-    for (let lvl = 1; lvl <= 6; lvl++) {
+    for (let lvl = 1; lvl <= MEDAL_TOP; lvl++) {
       if (lvl > 1 && !((stats.medals[lvl - 1] || 0) >= 1)) continue;
       html += renderRow(ACHIEVEMENTS.filter((a) => a.type === "medal" && a.lvl === lvl));
     }
-    // الكؤوس لا تظهر إلا بعد بلوغ آخر ميدالية (اللانهائية = المستوى 6) مرّة على الأقل
-    if ((stats.medals[6] || 0) >= 1) html += renderRow(ACHIEVEMENTS.filter((a) => a.type === "cup"));
+    // الكؤوس لا تظهر إلا بعد بلوغ أعلى ميدالية (الخرافية) مرّة على الأقل
+    if ((stats.medals[MEDAL_TOP] || 0) >= 1) html += renderRow(ACHIEVEMENTS.filter((a) => a.type === "cup"));
     document.getElementById("profile-ach").innerHTML = html;
     document.getElementById("profile-screen").classList.remove("hidden");
   };
