@@ -45,7 +45,8 @@
     bomb:   { color: "#ff6b3d", label: "💣", glow: "#ff6b3d" },
     freeze: { color: "#7fe7ff", label: "❄️", glow: "#7fe7ff" },
   };
-  const POWERUP_WEIGHTS = [{ t: "speed", w: 30 }, { t: "double", w: 20 }, { t: "half", w: 13 }, { t: "radar", w: 10 }, { t: "magnet", w: 10 }, { t: "shield", w: 8 }, { t: "bomb", w: 5 }, { t: "freeze", w: 5 }];
+  // الندرة: السرعة/الرادار الأكثر شيوعاً ← المغناطيس/÷2 ← القنبلة/التجميد/الدرع ← ×2 الأندر
+  const POWERUP_WEIGHTS = [{ t: "speed", w: 26 }, { t: "radar", w: 26 }, { t: "magnet", w: 16 }, { t: "half", w: 16 }, { t: "bomb", w: 7 }, { t: "freeze", w: 7 }, { t: "shield", w: 7 }, { t: "double", w: 3 }];
 
   const MAP_PATTERNS = ["square", "circle", "triangle", "maze"];
   const MEDALS = [
@@ -445,9 +446,10 @@
   const snake = {
     x: 0, y: 0, angle: 0, values: [], path: [],
     speedTimer: 0, stamina: 1, boosting: false, exhausted: false, staminaDelay: 0, dangerTimer: 0, headDangerTimer: 0, charges: 0, radarTimer: 0, magnetTimer: 0,
-    shieldTimer: 0, bombs: 0, freezes: 0, frozenTimer: 0,
+    shieldTimer: 0, bombs: 0, freezes: 0, shields: 0, frozenTimer: 0,
   };
   let playerName = "أنت";
+  let pendBombs = 0, pendFreezes = 0, pendShields = 0; // قوى مخزّنة تُنقل للجولة التالية: تنصّف عند الموت، تبقى كاملة عند الفوز، تُمسح بالخروج للقائمة
 
   function resetSnake() {
     snake.x = 0; snake.y = 0; snake.angle = 0;
@@ -455,7 +457,7 @@
     snake.path = [{ x: 0, y: 0 }];
     snake.speedTimer = 0; snake.stamina = 1; snake.boosting = false; snake.exhausted = false; snake.staminaDelay = 0;
     snake.dangerTimer = 0; snake.headDangerTimer = 0; snake.charges = 0; snake.radarTimer = 0; snake.magnetTimer = 0;
-    snake.shieldTimer = 0; snake.bombs = 0; snake.freezes = 0; snake.frozenTimer = 0;
+    snake.shieldTimer = 0; snake.bombs = 0; snake.freezes = 0; snake.shields = 0; snake.frozenTimer = 0;
   }
   // دوال عامّة تعمل لأي ثعبان (لاعب أو بوت)
   function segDistOf(values) {
@@ -721,7 +723,7 @@
     if (type === "speed") snake.speedTimer = CONFIG.SPEEDCUBE_TIME;
     else if (type === "radar") snake.radarTimer = CONFIG.RADAR_TIME;
     else if (type === "magnet") snake.magnetTimer = CONFIG.MAGNET_TIME;
-    else if (type === "shield") snake.shieldTimer = CONFIG.SHIELD_TIME;
+    else if (type === "shield") { snake.shields++; updateStored(); }  // مخزّنة — تُستعمل بالنقر (مثل القنبلة/التجميد)
     else if (type === "bomb") { snake.bombs++; updateStored(); }     // مخزّنة — تُستعمل بالنقر
     else if (type === "freeze") { snake.freezes++; updateStored(); } // مخزّنة — تُستعمل بالنقر
     else if (type === "double") { snake.values = snake.values.map((v) => v * 2); }
@@ -979,7 +981,7 @@
       case "KeyF": usePower("speed"); break;
       case "KeyR": usePower("radar"); break;
       case "KeyM": usePower("magnet"); break;
-      case "KeyG": usePower("shield"); break;
+      case "KeyG": if (isBinAref()) usePower("shield"); else useShield(); break;
       case "KeyB": if (isBinAref()) usePower("bomb"); else useBomb(); break;
       case "KeyC": if (isBinAref()) usePower("freeze"); else useFreeze(); break;
       case "Digit1": case "Numpad1": emojiByIndex(0); break;
@@ -1035,15 +1037,19 @@
   function restart() {
     const stillHost = online && isHost && peer;
     const stillClient = online && !isHost && hostConn && hostConn.open;
+    // ننقل القوى المخزّنة: النصف عند الموت (over)، كاملةً عند الفوز (won)
+    const div = state === "over" ? 2 : 1;
+    pendBombs = Math.floor((snake.bombs || 0) / div); pendFreezes = Math.floor((snake.freezes || 0) / div); pendShields = Math.floor((snake.shields || 0) / div);
     // خسارة في غرفة مستمرة: إحياء في نفس العالم دون إعادة بنائه (العالم ظلّ حياً للبقية)
     if ((stillHost || stillClient) && state === "over") { respawnInRoom(); return; }
     // فوز (جولة جديدة) أو غير متصل: لعبة كاملة جديدة
     beginPlay(stillHost ? "host" : (stillClient ? "client" : "solo"));
   }
   window.restart = restart;
+  function applyPendStored() { snake.bombs = pendBombs; snake.freezes = pendFreezes; snake.shields = pendShields; pendBombs = pendFreezes = pendShields = 0; updateStored(); }
   // إحياء اللاعب في نفس الغرفة الجارية: يلمس ثعبانه فقط، لا العالم ولا اللاعبين الآخرين
   function respawnInRoom() {
-    exitSpectate(); resetSnake();
+    exitSpectate(); resetSnake(); applyPendStored();
     const a = rand(0, Math.PI * 2), d = rand(0, CONFIG.WORLD * 0.5);
     snake.x = Math.cos(a) * d; snake.y = Math.sin(a) * d; snake.path = [{ x: snake.x, y: snake.y }];
     snake.charges = prizeCharges; updateCharges();
@@ -1066,7 +1072,7 @@
     gameLevel = 1; mapRotation = 0; CONFIG.WORLD = CONFIG.WORLD_MIN; // الساحة تبدأ صغيرة وتكبر مع العدد
     medal.level = 0; medal.leaderId = null; medal.reign = 0; medal.leaderName = "";
     particles = []; floatEmojis = []; rings = []; flash = 0; debris = []; playTime = 0; maxReign = 0; killFeed = []; remotes.clear(); resetBots();
-    resetSnake();
+    resetSnake(); applyPendStored(); // أعد القوى المخزّنة المنقولة (نصف عند الموت/كاملة عند الفوز)
     if (online) { // موضع انطلاق عشوائي لتفادي التراكب
       const a = rand(0, Math.PI * 2), d = rand(0, CONFIG.WORLD * 0.5);
       snake.x = Math.cos(a) * d; snake.y = Math.sin(a) * d; snake.path = [{ x: snake.x, y: snake.y }];
@@ -1209,26 +1215,44 @@
     rings.push({ x, y, r: 0.5, life: 0.5, max: 0.5, color: col, big: r }); // موجة تصل لنصف القطر
     flashCol = col; flash = 0.32; shake = 0.5;
   }
+  // القنبلة: رأسه ≤ رأسك → ينفجر كاملاً؛ وإن كان رأسه أكبر تُنزع منه الأجزاء التي ≤ رأسك (تسقط طعاماً)
+  function bombCut(bot, hv) {
+    if (!bot.alive || bot.shieldTimer > 0) return;
+    const cut = bot.values.findIndex((v) => v <= hv);
+    if (cut < 0) return;                 // كل أجزائه أكبر منك — لا يتأثّر
+    if (cut === 0) { killBot(bot); return; } // رأسه ≤ رأسك → ينفجر كاملاً
+    const body = bodyOf(bot);
+    for (let i = cut; i < bot.values.length; i++) { const p = body[i] || { x: bot.x, y: bot.y }; spawnBurst(p.x, p.y, "#ff6b3d", 5); dropLoose(p.x, p.y, bot.values[i]); }
+    bot.values.length = cut;
+  }
   function detonateBomb() {
     const r = areaRadius(), hv = headValue();
     sfx("explosion"); vibrate(120); explodeFx(snake.x, snake.y, r, "#ff6b3d");
-    for (const b of [...bots.values()]) if (b.alive && b.values[0] <= hv && b.shieldTimer <= 0 && Math.hypot(b.x - snake.x, b.y - snake.y) < r) killBot(b); // نفس المستوى أو أضعف (والدرع يحمي)
-    for (const rm of remotes.values()) if (rm.x != null && (rm.head || 2) <= hv && Math.hypot(rm.x - snake.x, rm.y - snake.y) < r) netSend({ t: "cut", target: rm.id, index: 0 });
+    for (const b of [...bots.values()]) if (b.alive && b.shieldTimer <= 0 && Math.hypot(b.x - snake.x, b.y - snake.y) < r) bombCut(b, hv);
+    for (const rm of remotes.values()) {
+      if (rm.x == null || rm.shield || Math.hypot(rm.x - snake.x, rm.y - snake.y) >= r) continue;
+      const vals = (rm.body || []).map((s) => (s.v != null ? s.v : s.value));
+      const cut = vals.findIndex((v) => v <= hv);
+      if (cut >= 0) netSend({ t: "cut", target: rm.id, index: cut });
+    }
   }
+  // التجميد: نفس المستوى أو أقل = 3 ثوانٍ؛ وكلما كبر العدو تقلّ المدّة 0.5 لكل مستوى فرق حتى تصل 0
+  function freezeDur(enemyHead, hv) { const diff = Math.max(0, log2((enemyHead || 2) / hv)); return clamp(3 - 0.5 * diff, 0, 3); }
   function detonateFreeze() {
-    const r = areaRadius();
+    const r = areaRadius(), hv = headValue();
     sfx("freeze"); vibrate(40); explodeFx(snake.x, snake.y, r, "#7fe7ff");
-    for (const b of bots.values()) if (b.alive && b.shieldTimer <= 0 && Math.hypot(b.x - snake.x, b.y - snake.y) < r) b.frozen = CONFIG.FREEZE_TIME;
-    for (const rm of remotes.values()) if (rm.x != null && Math.hypot(rm.x - snake.x, rm.y - snake.y) < r) netSend({ t: "freezeP", target: rm.id });
+    for (const b of bots.values()) { if (!b.alive || b.shieldTimer > 0 || Math.hypot(b.x - snake.x, b.y - snake.y) >= r) continue; const d = freezeDur(b.values[0], hv); if (d > 0) b.frozen = d; }
+    for (const rm of remotes.values()) { if (rm.x == null || rm.shield || Math.hypot(rm.x - snake.x, rm.y - snake.y) >= r) continue; const d = freezeDur(rm.head, hv); if (d > 0) netSend({ t: "freezeP", target: rm.id, dur: d }); }
   }
   function useBomb() { if (snake.bombs <= 0 || state !== "playing") return; snake.bombs--; updateStored(); detonateBomb(); }
   function useFreeze() { if (snake.freezes <= 0 || state !== "playing") return; snake.freezes--; updateStored(); detonateFreeze(); }
+  function useShield() { if (snake.shields <= 0 || state !== "playing") return; snake.shields--; updateStored(); snake.shieldTimer = CONFIG.SHIELD_TIME; sfx("good"); spawnBurst(snake.x, snake.y, "#39d0ff", 12); }
   function updateStored() {
     const el = document.getElementById("stored"); if (!el) return;
     el.innerHTML = "";
     const add = (icon, n, fn, key) => { if (n <= 0) return; const b = document.createElement("button"); b.className = "stored-btn"; b.innerHTML = icon + "<span class='cnt'>" + n + "</span>" + (!touchDevice && key ? "<span class='key'>" + key + "</span>" : ""); b.addEventListener("pointerdown", (e) => { e.preventDefault(); fn(); }); el.appendChild(b); };
-    add("💣", snake.bombs, useBomb, "B"); add("❄️", snake.freezes, useFreeze, "C");
-    el.classList.toggle("hidden", snake.bombs <= 0 && snake.freezes <= 0);
+    add("💣", snake.bombs, useBomb, "B"); add("❄️", snake.freezes, useFreeze, "C"); add("🛡️", snake.shields, useShield, "G");
+    el.classList.toggle("hidden", snake.bombs <= 0 && snake.freezes <= 0 && snake.shields <= 0);
   }
 
   // ===== قوى خاصة لـ BinAref — تُفتح فقط بعد لعب جولة كاملة باسم Abdo (واللعب ثم الموت بهذا الاسم مرّة على الأقل) =====
@@ -1793,14 +1817,40 @@
   }
 
   // فقاعة درع متوهّجة حول مكعّب
-  function drawShieldCube(wx, wy, size) {
-    const p = project(wx, wy), s = size * CONFIG.SCALE;
-    const cy = p.y - s * CONFIG.CUBE_H * 0.5, rad = s * 0.66;
-    const pulse = 0.6 + 0.4 * Math.sin(now * 6 + wx);
+  // درع يتشكّل بشكل المجسّم الحالي (أوسع قليلاً) بدل دائرة ثابتة
+  function drawShieldCube(wx, wy, sizeW) {
+    const sw = sizeW * 1.18; const SC = CONFIG.SCALE, sh = blockShape, c = project(wx, wy);
+    const pulse = 0.55 + 0.45 * Math.sin(now * 6 + wx);
     ctx.save();
-    ctx.globalAlpha = 0.45 * pulse; ctx.strokeStyle = "#9becff"; ctx.shadowColor = "#39d0ff"; ctx.shadowBlur = 9; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(p.x, cy, rad, 0, Math.PI * 2); ctx.stroke();
-    ctx.globalAlpha = 0.1 * pulse; ctx.fillStyle = "#39d0ff"; ctx.fill();
+    ctx.globalAlpha = 0.5 * pulse; ctx.strokeStyle = "#9becff"; ctx.shadowColor = "#39d0ff"; ctx.shadowBlur = 10; ctx.lineWidth = 2.2; ctx.lineJoin = "round"; ctx.lineCap = "round";
+    if (sh === "sphere") {
+      const rad = sw * SC * 0.62, cy = c.y - rad * 0.55;
+      ctx.beginPath(); ctx.arc(c.x, cy, rad, 0, Math.PI * 2); ctx.stroke();
+    } else if (sh === "cylinder") {
+      const rx = sw * SC * 0.62, ry = rx * 0.5, ch = sw * SC * 0.7, topY = c.y - ch;
+      ctx.beginPath(); ctx.ellipse(c.x, topY, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(c.x - rx, topY); ctx.lineTo(c.x - rx, c.y); ctx.moveTo(c.x + rx, topY); ctx.lineTo(c.x + rx, c.y); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(c.x, c.y, rx, ry, 0, 0, Math.PI); ctx.stroke();
+    } else if (sh === "gem") {
+      const w = sw * SC * 0.7, h = sw * SC * 0.85, cy = c.y - h * 0.55;
+      ctx.beginPath(); ctx.moveTo(c.x, cy - h); ctx.lineTo(c.x + w, cy); ctx.lineTo(c.x, cy + h); ctx.lineTo(c.x - w, cy); ctx.closePath(); ctx.stroke();
+    } else if (sh === "hex") {
+      const rx = sw * SC * 0.6, ry = rx * 0.5, ch = sw * SC * 0.7, topY = c.y - ch;
+      const pt = (cyy, i) => ({ x: c.x + Math.cos(-Math.PI / 2 + i * Math.PI * 2 / 6) * rx, y: cyy + Math.sin(-Math.PI / 2 + i * Math.PI * 2 / 6) * ry });
+      for (const yy of [topY, c.y]) { ctx.beginPath(); for (let i = 0; i < 6; i++) { const p = pt(yy, i); i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); } ctx.closePath(); ctx.stroke(); }
+    } else if (sh === "pyramid") {
+      const ch = sw * SC * 0.95;
+      const b2 = project(wx + sw / 2, wy - sw / 2), b3 = project(wx + sw / 2, wy + sw / 2), b4 = project(wx - sw / 2, wy + sw / 2), apex = { x: c.x, y: c.y - ch };
+      ctx.beginPath(); ctx.moveTo(b4.x, b4.y); ctx.lineTo(b3.x, b3.y); ctx.lineTo(b2.x, b2.y); ctx.lineTo(apex.x, apex.y); ctx.closePath(); ctx.stroke();
+    } else if (sh === "star") {
+      const R = sw * SC * 0.72, rIn = R * 0.45, cy = c.y - R * 0.5;
+      ctx.beginPath(); for (let i = 0; i < 10; i++) { const rr = i % 2 ? rIn : R, a = -Math.PI / 2 + i * Math.PI / 5, x = c.x + Math.cos(a) * rr, y = cy + Math.sin(a) * rr * 0.85; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.closePath(); ctx.stroke();
+    } else { // مكعّب (الافتراضي): الصورة الظلّية السداسية
+      const half = sw / 2, ch = sw * SC * CONFIG.CUBE_H;
+      const t1 = project(wx - half, wy - half), t2 = project(wx + half, wy - half), t3 = project(wx + half, wy + half), t4 = project(wx - half, wy + half);
+      const b2 = { x: t2.x, y: t2.y + ch }, b3 = { x: t3.x, y: t3.y + ch }, b4 = { x: t4.x, y: t4.y + ch };
+      ctx.beginPath(); ctx.moveTo(t1.x, t1.y); ctx.lineTo(t2.x, t2.y); ctx.lineTo(b2.x, b2.y); ctx.lineTo(b3.x, b3.y); ctx.lineTo(b4.x, b4.y); ctx.lineTo(t4.x, t4.y); ctx.closePath(); ctx.stroke();
+    }
     ctx.restore();
   }
   function render() {
@@ -2118,7 +2168,9 @@
   function buildLangList(filter) {
     const ul = document.getElementById("lang-list"); ul.innerHTML = "";
     const f = (filter || "").trim().toLowerCase();
-    for (const L of (window.LANGS || [])) {
+    const all = window.LANGS || [], cur = all.find((l) => l.code === curLang);
+    const ordered = cur ? [cur, ...all.filter((l) => l.code !== curLang)] : all; // اللغة الحالية (لغة الجهاز) أولاً
+    for (const L of ordered) {
       if (f && !((L.native || "").toLowerCase().includes(f) || (L.en || "").toLowerCase().includes(f) || (L.q || "").includes(f))) continue;
       const li = document.createElement("li"); li.textContent = L.native + " — " + L.en;
       li.onclick = () => { setLang(L.code); document.getElementById("lang-menu").classList.add("hidden"); };
@@ -2131,12 +2183,13 @@
     m.classList.toggle("hidden");
     if (willOpen) {
       const s = document.getElementById("lang-search"); s.value = ""; buildLangList(""); // بلا تركيز تلقائي على البحث
-      // ضع القائمة قرب زر اللغة وداخل الشاشة (يختلف موضع الزر بين الهاتف والكمبيوتر)
+      // درب‑داون مباشرة تحت الزر، محاذاةً لحافته القريبة من القراءة، وداخل الشاشة
       const r = document.getElementById("lang-btn").getBoundingClientRect();
-      const mw = Math.min(window.innerWidth * 0.86, 300);
-      let left = r.left + r.width / 2 - mw / 2;
+      const mw = Math.min(260, window.innerWidth - 16);
+      const rtl = document.documentElement.dir === "rtl";
+      let left = rtl ? (r.right - mw) : r.left;
       left = Math.max(8, Math.min(left, window.innerWidth - mw - 8));
-      m.style.position = "fixed"; m.style.left = left + "px"; m.style.top = (r.bottom + 6) + "px";
+      m.style.position = "fixed"; m.style.left = left + "px"; m.style.top = (r.bottom + 4) + "px";
       m.style.width = mw + "px"; m.style.insetInlineStart = "auto"; m.style.insetInlineEnd = "auto";
       m.style.transform = "none"; m.style.maxHeight = Math.max(140, window.innerHeight - r.bottom - 18) + "px";
     }
@@ -2450,6 +2503,7 @@
 
   function backToMenu() {
     online = false; isHost = false; migrating = false; state = "menu"; exitSpectate(); remotes.clear(); bots.clear(); hostConn = null; clientConns.clear();
+    pendBombs = pendFreezes = pendShields = 0; // الخروج للقائمة يمسح القوى المخزّنة
     startDemo(); // أعد تشغيل خلفية العرض الحيّة
     hideRoomCodeHud(); document.body.classList.remove("in-game");
     hostLobby = false;
@@ -2544,10 +2598,11 @@
         else { const c = clientConns.get(msg.target); if (c && c.open) { try { c.send({ t: "cut", index: msg.index }); } catch (_) {} } }
         break;
       }
-      case "freezeP": { // تجميد لاعب/بوت في منطقة قنبلة الثلج
-        if (msg.target === myId) snake.frozenTimer = CONFIG.FREEZE_TIME;
-        else if (bots.has(msg.target)) bots.get(msg.target).frozen = CONFIG.FREEZE_TIME;
-        else { const c = clientConns.get(msg.target); if (c && c.open) { try { c.send({ t: "frozen" }); } catch (_) {} } }
+      case "freezeP": { // تجميد لاعب/بوت في منطقة قنبلة الثلج (المدّة حسب فرق المستوى)
+        const dur = msg.dur || CONFIG.FREEZE_TIME;
+        if (msg.target === myId) snake.frozenTimer = dur;
+        else if (bots.has(msg.target)) bots.get(msg.target).frozen = dur;
+        else { const c = clientConns.get(msg.target); if (c && c.open) { try { c.send({ t: "frozen", dur }); } catch (_) {} } }
         break;
       }
       case "emoji": { const r = remotes.get(fromId); if (r) { r.emojiEm = msg.em; r.emojiLife = 2; } hostBroadcast({ t: "emoji", id: fromId, em: msg.em }, fromId); break; }
@@ -2567,7 +2622,7 @@
       case "medal": medal.level = msg.level; medal.leaderId = msg.leaderId; medal.leaderName = msg.leaderName; updateMedalBadge(); break;
       case "win": winGame(msg.name, msg.id); break;
       case "cut": applyCut(msg.index); break;
-      case "frozen": snake.frozenTimer = CONFIG.FREEZE_TIME; break;
+      case "frozen": snake.frozenTimer = msg.dur || CONFIG.FREEZE_TIME; break;
       case "left": remotes.delete(msg.id); break;
       case "denied": { const s = document.getElementById("join-status"); s.classList.add("error"); s.textContent = "كلمة السر غير صحيحة"; backToMenu(); break; }
     }
@@ -2674,9 +2729,13 @@
   };
   // إغلاق اللعبة (المتصفح/التطبيق)
   window.quitGame = function () {
-    // التطبيق الأصلي: أغلق التطبيق فعلياً
-    try { if (window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.App) { Capacitor.Plugins.App.exitApp(); return; } } catch (e) {}
-    // المتصفّح/PWA: حاول إغلاق التبويب (ينجح إن فُتح عبر سكربت أو في وضع التطبيق المستقل) — بلا about:blank
+    // التطبيق الأصلي (أندرويد/iOS): أغلق التطبيق فعلياً
+    try {
+      const C = window.Capacitor, App = C && C.Plugins && C.Plugins.App;
+      if (App && App.exitApp) { App.exitApp(); return; }
+      if (navigator.app && navigator.app.exitApp) { navigator.app.exitApp(); return; } // احتياطي كوردوفا
+    } catch (e) {}
+    // المتصفّح/PWA: حاول إغلاق التبويب
     try { window.open("", "_self"); window.close(); } catch (e) {}
     try { window.close(); } catch (e) {}
   };

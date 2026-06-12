@@ -132,5 +132,10 @@
     setMuted(m) { mutedAll = m; persist(); if (master) master.gain.value = m ? 0 : 1; },
     isMuted() { return mutedAll; },
     toggleMute() { this.setMuted(!mutedAll); return mutedAll; },
+    unlock() { ensure(); resume(); },
   };
+
+  // فكّ قفل الصوت عند أوّل تفاعل من المستخدم (سياسة التشغيل التلقائي في المتصفّحات)
+  const _unlock = () => { try { ensure(); resume(); } catch (e) {} };
+  ["pointerdown", "touchstart", "keydown", "click"].forEach((ev) => document.addEventListener(ev, _unlock, { passive: true }));
 })();
