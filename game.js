@@ -2129,7 +2129,17 @@
     if (e) e.stopPropagation(); // لا يصل النقر لمغلِّق "خارج القائمة"
     const m = document.getElementById("lang-menu"); const willOpen = m.classList.contains("hidden");
     m.classList.toggle("hidden");
-    if (willOpen) { const s = document.getElementById("lang-search"); s.value = ""; buildLangList(""); } // بلا تركيز تلقائي على البحث
+    if (willOpen) {
+      const s = document.getElementById("lang-search"); s.value = ""; buildLangList(""); // بلا تركيز تلقائي على البحث
+      // ضع القائمة قرب زر اللغة وداخل الشاشة (يختلف موضع الزر بين الهاتف والكمبيوتر)
+      const r = document.getElementById("lang-btn").getBoundingClientRect();
+      const mw = Math.min(window.innerWidth * 0.86, 300);
+      let left = r.left + r.width / 2 - mw / 2;
+      left = Math.max(8, Math.min(left, window.innerWidth - mw - 8));
+      m.style.position = "fixed"; m.style.left = left + "px"; m.style.top = (r.bottom + 6) + "px";
+      m.style.width = mw + "px"; m.style.insetInlineStart = "auto"; m.style.insetInlineEnd = "auto";
+      m.style.transform = "none"; m.style.maxHeight = Math.max(140, window.innerHeight - r.bottom - 18) + "px";
+    }
   };
   window.closeLangMenu = function () { const m = document.getElementById("lang-menu"); if (m) m.classList.add("hidden"); };
   // النقر خارج قائمة اللغة أو قائمة ☰ يغلقها
@@ -2795,7 +2805,8 @@
       if (lvl > 1 && !((stats.medals[lvl - 1] || 0) >= 1)) continue;
       html += renderRow(ACHIEVEMENTS.filter((a) => a.type === "medal" && a.lvl === lvl));
     }
-    html += renderRow(ACHIEVEMENTS.filter((a) => a.type === "cup"));
+    // الكؤوس لا تظهر إلا بعد بلوغ آخر ميدالية (اللانهائية = المستوى 6) مرّة على الأقل
+    if ((stats.medals[6] || 0) >= 1) html += renderRow(ACHIEVEMENTS.filter((a) => a.type === "cup"));
     document.getElementById("profile-ach").innerHTML = html;
     document.getElementById("profile-screen").classList.remove("hidden");
   };

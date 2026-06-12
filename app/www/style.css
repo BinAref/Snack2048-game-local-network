@@ -290,7 +290,8 @@ body::after {
 .panel > p { color: var(--text-secondary); font-size: 13px; line-height: 1.8; margin-bottom: 14px; }
 
 /* ===== شعار وعنوان المنيو ===== */
-.menu-panel { padding-top: 34px; }
+/* لوحة المنيو شبه شفّافة لتُرى الأرضية الحيّة من خلالها */
+.menu-panel { padding-top: 34px; background: rgba(7,13,25,0.42); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
 /* الشعار والاسم: عمودي كالأصل (يتحوّل لأفقي في الوضع الأفقي فقط) */
 .logo-block { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 16px; }
 .logo-ring {
@@ -392,7 +393,7 @@ body::after {
 .lang-menu.hidden { display: none; }
 #lang-search { width: 100%; box-sizing: border-box; font-family: var(--font-data); background: rgba(255,255,255,0.05); border: 1px solid var(--border-neon); color: var(--text-primary); border-radius: var(--radius-sm); padding: 8px 10px; outline: none; margin-bottom: 6px; font-size: 14px; }
 #lang-search:focus { border-color: var(--border-glow); box-shadow: var(--glow-blue); }
-#lang-list { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow-y: auto; }
+#lang-list { list-style: none; margin: 0; padding: 0; max-height: min(46vh, 280px); overflow-y: auto; }
 #lang-list li { padding: 8px 10px; border-radius: var(--radius-sm); cursor: pointer; color: var(--text-secondary); font-size: 14px; text-align: start; }
 #lang-list li:hover { background: rgba(0,212,255,0.15); color: var(--text-primary); }
 
@@ -743,8 +744,7 @@ body.touch #stored { left: auto; right: calc(14px + env(safe-area-inset-right));
   .end-items .lang-dd { width: 100%; }
   .end-items #lang-btn { width: 100%; height: 34px; padding: 0; font-size: 12px; display: flex; align-items: center; justify-content: center; }
   .end-items .side-close { display: flex; grid-column: 1 / -1; width: 100%; height: auto; padding: 6px 8px; font-size: 11px; } /* الإغلاق صفّاً كاملاً أسفل الشبكة */
-  /* قائمة اللغات تُعرض موسّطة كي لا تُقصّ داخل القائمة الصغيرة */
-  .end-items #lang-menu { position: fixed; top: 50%; inset-inline-start: 50%; inset-inline-end: auto; transform: translate(-50%, -50%); width: min(86vw, 320px); }
+  /* موضع قائمة اللغات يُحسب في JS قرب الزر */
 }
 
 /* الهاتف أفقياً: القوى صفّاً صغيراً أعلى الوسط بين المتصدّرين وإحصائياتي */
@@ -805,8 +805,6 @@ body.touch #stored { left: auto; right: calc(14px + env(safe-area-inset-right));
   .ach-head { margin: 4px 0 4px; font-size: 14px; }
   .ach { width: 56px; }
   /* قائمة اللغة أصغر في الأفقي */
-  .end-items #lang-menu { width: min(62vw, 270px); padding: 8px; }
-  #lang-list { max-height: 40vh; }
   #lang-list li { font-size: 12px; line-height: 1.6; }
 }
 
