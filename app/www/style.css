@@ -200,6 +200,13 @@ body::after {
 .ach.got { opacity: 1; filter: none; border-color: var(--neon-gold); box-shadow: 0 0 8px rgba(243,156,18,0.4); }
 .ach-ic { font-size: 16px; }
 .ach-nm { font-size: 8px; color: var(--text-secondary); line-height: 1.15; margin-top: 1px; }
+.ach { cursor: help; }
+/* تلميح الإنجاز */
+#tip { position: fixed; z-index: 60; transform: translate(-50%, -100%); pointer-events: none;
+  background: rgba(7,13,25,0.96); border: 1px solid var(--border-glow); border-radius: 8px; padding: 6px 10px;
+  font-family: var(--font-data); font-size: 12px; font-weight: 700; color: var(--text-primary); white-space: nowrap;
+  box-shadow: var(--glow-blue), 0 8px 20px rgba(0,0,0,0.5); }
+#tip.hidden { display: none; }
 .power-btn {
   width: 44px; height: 44px; border-radius: var(--radius-sm); cursor: pointer;
   background: linear-gradient(160deg, rgba(155,89,182,0.35), rgba(155,89,182,0.1));
@@ -259,8 +266,10 @@ body::after {
 }
 .overlay.hidden { display: none; }
 #settings-screen { z-index: 30; } /* يُفتح فوق شاشة الإيقاف المؤقت عند النقر على زر الصوت فيها */
-/* شاشة المنيو: طبقة شفّافة فوق العرض الحيّ بلا أي بلور (كل شيء واضح) */
-#start-screen.overlay { background: rgba(3,5,14,0.5); backdrop-filter: none; -webkit-backdrop-filter: none; }
+/* شاشة المنيو: بلا أي طبقة خلفية ولا بلور — العرض الحيّ واضح تماماً */
+#start-screen.overlay { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+/* الديالوقات: تعتيم خفيف جداً بلا بلور (تبقى الخلفية ظاهرة) */
+#settings-screen.overlay, #help-screen.overlay, #profile-screen.overlay, #pregame-screen.overlay, #download-modal.overlay { background: rgba(3,5,14,0.3); backdrop-filter: none; -webkit-backdrop-filter: none; }
 
 .panel {
   position: relative;

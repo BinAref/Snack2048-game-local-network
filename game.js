@@ -2702,13 +2702,24 @@
 
   // ===== الإنجازات (نظام متدرّج) + ملفّ اللاعب =====
   const ACHIEVEMENTS = [
-    { type: "num", v: 1024, icon: "🔢" }, { type: "num", v: 2048, icon: "🔢" }, { type: "num", v: 4096, icon: "🟦" },
-    { type: "num", v: 8192, icon: "🟦" }, { type: "num", v: 16384, icon: "💎" }, { type: "num", v: 32768, icon: "💠" },
-    { type: "kills", v: 10, icon: "⚔️" }, { type: "kills", v: 50, icon: "🗡️" }, { type: "kills", v: 100, icon: "💀" }, { type: "kills", v: 250, icon: "☠️" },
-    { type: "games", v: 10, icon: "🎮" }, { type: "games", v: 50, icon: "🎮" }, { type: "games", v: 100, icon: "🕹️" },
-    { type: "play", v: 1800, icon: "⏱️" }, { type: "play", v: 7200, icon: "⏳" },
+    // الوصول لمكعّب: ×8 كل مرّة حتى المليارات
+    { type: "num", v: 1024, icon: "🔢" }, { type: "num", v: 8192, icon: "🔢" }, { type: "num", v: 65536, icon: "🟦" },
+    { type: "num", v: 524288, icon: "🟦" }, { type: "num", v: 4194304, icon: "💎" }, { type: "num", v: 33554432, icon: "💎" },
+    { type: "num", v: 268435456, icon: "💠" }, { type: "num", v: 2147483648, icon: "👑" },
+    // القتلات
+    { type: "kills", v: 10, icon: "⚔️" }, { type: "kills", v: 30, icon: "⚔️" }, { type: "kills", v: 50, icon: "🗡️" }, { type: "kills", v: 70, icon: "🗡️" },
+    { type: "kills", v: 100, icon: "💀" }, { type: "kills", v: 200, icon: "💀" }, { type: "kills", v: 500, icon: "☠️" }, { type: "kills", v: 1000, icon: "☠️" },
+    // اللعبات
+    { type: "games", v: 10, icon: "🎮" }, { type: "games", v: 30, icon: "🎮" }, { type: "games", v: 50, icon: "🎮" }, { type: "games", v: 100, icon: "🕹️" },
+    { type: "games", v: 200, icon: "🕹️" }, { type: "games", v: 500, icon: "🕹️" }, { type: "games", v: 1000, icon: "🏅" }, { type: "games", v: 5000, icon: "🏅" },
+    { type: "games", v: 10000, icon: "🎖️" }, { type: "games", v: 50000, icon: "🎖️" }, { type: "games", v: 100000, icon: "🏆" },
+    // الوقت (بالثواني): 10،30،60،120،180،300،600 دقيقة
+    { type: "play", v: 600, icon: "⏱️" }, { type: "play", v: 1800, icon: "⏱️" }, { type: "play", v: 3600, icon: "⏳" }, { type: "play", v: 7200, icon: "⏳" },
+    { type: "play", v: 10800, icon: "🕰️" }, { type: "play", v: 18000, icon: "🕰️" }, { type: "play", v: 36000, icon: "📅" },
+    // الملك (الصدارة المتواصلة)
     { type: "king", v: 360, icon: "👑" }, { type: "king", v: 1800, icon: "👑" },
-    { type: "cup", v: 1, icon: "🏆" }, { type: "cup", v: 5, icon: "🏆" }, { type: "cup", v: 10, icon: "🥇" },
+    // الكؤوس
+    { type: "cup", v: 1, icon: "🏆" }, { type: "cup", v: 5, icon: "🏆" }, { type: "cup", v: 10, icon: "🥇" }, { type: "cup", v: 30, icon: "🥇" }, { type: "cup", v: 50, icon: "🏆" },
   ];
   const achId = (a) => a.type + a.v;
   function achTest(a, s) {
@@ -2755,13 +2766,29 @@
     // الإنجازات مقسّمة حسب النوع، كل قسم في سطر أفقي قابل للتمرير
     const groups = ["num", "kills", "games", "play", "king", "cup"];
     document.getElementById("profile-ach").innerHTML = groups.map((g) => {
-      const items = ACHIEVEMENTS.filter((a) => a.type === g).map((a) =>
-        `<div class="ach ${stats.ach[achId(a)] ? "got" : ""}"><div class="ach-ic">${a.icon}</div><div class="ach-nm">${achName(a)}</div></div>`).join("");
+      const items = ACHIEVEMENTS.filter((a) => a.type === g).map((a) => {
+        const got = stats.ach[achId(a)], tip = achName(a) + (got ? " ✓" : " 🔒");
+        return `<div class="ach ${got ? "got" : ""}" data-tip="${escapeHtml(tip)}"><div class="ach-ic">${a.icon}</div><div class="ach-nm">${achName(a)}</div></div>`;
+      }).join("");
       return items ? `<div class="ach-row">${items}</div>` : "";
     }).join("");
     document.getElementById("profile-screen").classList.remove("hidden");
   };
   window.closeProfile = function () { document.getElementById("profile-screen").classList.add("hidden"); };
+  // تلميح الإنجاز: مرور الماوس (Hover) أو النقر المطوّل باللمس
+  (function () {
+    const tip = document.getElementById("tip"), ach = document.getElementById("profile-ach");
+    if (!tip || !ach) return;
+    let lpT = null;
+    const show = (el) => { const txt = el.getAttribute("data-tip"); if (!txt) return; tip.textContent = txt; const r = el.getBoundingClientRect(); tip.style.left = Math.round(r.left + r.width / 2) + "px"; tip.style.top = Math.round(r.top - 6) + "px"; tip.classList.remove("hidden"); };
+    const hide = () => tip.classList.add("hidden");
+    ach.addEventListener("pointerover", (e) => { if (e.pointerType !== "touch") { const a = e.target.closest(".ach"); if (a) show(a); } });
+    ach.addEventListener("pointerout", (e) => { if (e.pointerType !== "touch") hide(); });
+    ach.addEventListener("pointerdown", (e) => { if (e.pointerType === "touch") { const a = e.target.closest(".ach"); if (a) lpT = setTimeout(() => show(a), 350); } });
+    ach.addEventListener("pointermove", (e) => { if (e.pointerType === "touch") { clearTimeout(lpT); } });
+    ach.addEventListener("pointerup", () => { clearTimeout(lpT); hide(); });
+    ach.addEventListener("pointercancel", () => { clearTimeout(lpT); hide(); });
+  })();
 
   // ===== المشاهدة بعد الموت (تلقائية) =====
   function enterSpectate() {
