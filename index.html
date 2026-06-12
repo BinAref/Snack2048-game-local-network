@@ -28,9 +28,9 @@
     <div id="score-box" class="panel-dd">
       <div class="dd-head">
         <span class="dd-title" data-i18n="stats">إحصائياتك</span>
-        <span class="dd-arrow" id="stats-arrow">▾</span>
+        <span class="dd-arrow" id="stats-arrow">▸</span>
       </div>
-      <div id="stats-body" class="dd-body">
+      <div id="stats-body" class="dd-body hidden">
         <div class="score-line"><span class="label" data-i18n="best">أعلى رقم</span><span id="best" class="value">2</span></div>
         <div class="score-line"><span class="label" data-i18n="score">النقاط</span><span id="score" class="value">0</span></div>
         <div class="score-line"><span class="label" data-i18n="length">الطول</span><span id="length" class="value">1</span></div>
@@ -74,7 +74,7 @@
         <div class="end-items">
           <!-- ترتيب DOM لـ RTL: اللغة ثم الملف، ثم ؟ ثم الإعدادات → بصرياً (الملف | اللغة) و(الإعدادات | ؟) -->
           <div id="lang-dd" class="lang-dd">
-            <button id="lang-btn" type="button" onclick="toggleLangMenu()">🌐 <span id="lang-current">EN</span></button>
+            <button id="lang-btn" type="button" onclick="toggleLangMenu(event)">🌐 <span id="lang-current">EN</span></button>
             <div id="lang-menu" class="lang-menu hidden">
               <input id="lang-search" type="text" oninput="filterLangs()" />
               <ul id="lang-list"></ul>
@@ -165,7 +165,7 @@
   </div>
 
   <!-- ===== ويدجت تحميل اللعبة ===== -->
-  <div id="download-modal" class="overlay hidden">
+  <div id="download-modal" class="overlay hidden" onclick="if(event.target===this)closeDownload()">
     <div class="panel dl-modal">
       <button class="close-x" onclick="closeDownload()" aria-label="close">✕</button>
       <h2 data-i18n="dlGame">تحميل اللعبة</h2>
@@ -181,7 +181,7 @@
   </div>
 
   <!-- ===== ديالوق ما قبل اللعب: اختيار البوتات والشكل ثم ابدأ ===== -->
-  <div id="pregame-screen" class="overlay hidden">
+  <div id="pregame-screen" class="overlay hidden" onclick="if(event.target===this)closePregame()">
     <div class="panel pregame-panel">
       <button class="close-x" onclick="closePregame()" aria-label="close">✕</button>
       <h1 data-i18n="gameSetup">إعداد اللعبة</h1>
@@ -242,7 +242,7 @@
   </div>
 
   <!-- ===== شاشة التعليمات ===== -->
-  <div id="help-screen" class="overlay hidden">
+  <div id="help-screen" class="overlay hidden" onclick="if(event.target===this)closeHelp()">
     <div class="panel help-panel">
       <button class="close-x" onclick="closeHelp()" aria-label="close">✕</button>
       <h1 data-i18n="howTitle">كيف تلعب</h1>
@@ -316,19 +316,18 @@
   </div>
 
   <!-- ===== شاشة ملفّ اللاعب ===== -->
-  <div id="profile-screen" class="overlay hidden">
-    <div class="panel">
+  <div id="profile-screen" class="overlay hidden" onclick="if(event.target===this)closeProfile()">
+    <div class="panel profile-panel">
       <button class="close-x" onclick="closeProfile()" aria-label="close">✕</button>
       <h1 data-i18n="profile">ملفّي</h1>
       <div id="profile-stats" class="profile-stats"></div>
       <h3 class="ach-head" data-i18n="achievements">الإنجازات</h3>
-      <div id="profile-ach" class="ach-grid"></div>
-      <button class="main-btn" onclick="closeProfile()" data-i18n="close">إغلاق</button>
+      <div id="profile-ach" class="ach-groups"></div>
     </div>
   </div>
 
   <!-- ===== شاشة الإعدادات ===== -->
-  <div id="settings-screen" class="overlay hidden">
+  <div id="settings-screen" class="overlay hidden" onclick="if(event.target===this)closeSettings()">
     <div class="panel">
       <button class="close-x" onclick="closeSettings()" aria-label="close">✕</button>
       <h1 data-i18n="settings">الإعدادات</h1>
@@ -375,7 +374,7 @@
   <button id="boost-btn">⚡</button>
 
   <!-- دردشة الرموز -->
-  <div id="chat-bar" class="hidden collapsed">
+  <div id="chat-bar" class="hidden">
     <button id="emoji-quick" class="emoji-q" aria-label="emoji">👍</button>
     <div id="emoji-list">
       <button data-emoji="👍">👍<span class="kbd">1</span></button>
@@ -384,7 +383,7 @@
       <button data-emoji="😂">😂<span class="kbd">4</span></button>
       <button data-emoji="💀">💀<span class="kbd">5</span></button>
     </div>
-    <button id="emoji-arrow" class="emoji-q arrow" aria-label="more">▾</button>
+    <button id="emoji-arrow" class="emoji-q arrow" aria-label="more">▴</button>
   </div>
 
   <script defer src="particles.js"></script>

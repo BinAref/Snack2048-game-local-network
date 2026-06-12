@@ -1499,7 +1499,7 @@
     while (v > 2 && values.length < 5) { v /= 2; values.push(v); }
     const challenger = !!opts.challenger;
     const p = challenger ? farFromPlayers() : freePos(2), id = "bot" + (botSeq++);
-    return { id, name: pickBotName(), color: colorForId(id), x: p.x, y: p.y, angle: rand(0, Math.PI * 2), values, path: [{ x: p.x, y: p.y }], diff, react: lerp(0.6, 0.1, diff), aiT: rand(0, 0.3), boost: false, stamina: 1, speedTimer: 0, radarTimer: 0, magnetTimer: 0, shieldTimer: 0, frozen: 0, dangerTimer: 0, headDangerTimer: 0, desiredAngle: rand(0, Math.PI * 2), _pbiteCD: 0, _obiteCD: 0, alive: true, respawnT: 0, spawnStrength: strength, challenger, emojiEm: null, emojiLife: 0 };
+    return { id, name: pickBotName(), color: colorForId(id), x: p.x, y: p.y, angle: rand(0, Math.PI * 2), values, path: [{ x: p.x, y: p.y }], diff, react: lerp(0.6, 0.1, diff), aiT: rand(0, 0.3), boost: false, stamina: 1, speedTimer: 0, radarTimer: 0, magnetTimer: 0, shieldTimer: 0, frozen: 0, dangerTimer: 0, headDangerTimer: 0, desiredAngle: rand(0, Math.PI * 2), _pbiteCD: 0, _obiteCD: 0, _emoCD: 0, alive: true, respawnT: 0, spawnStrength: strength, challenger, emojiEm: null, emojiLife: 0 };
   }
   function addBot(opts) { if (bots.size >= 30) return; const b = makeBot(opts); bots.set(b.id, b); }
   // أماكن اللاعبين الحقيقيين (المحلي + البعيدون)
@@ -1540,6 +1540,13 @@
     bot.values.push(val); bot.values.sort((a, b) => b - a);
     let m = true; while (m) { m = false; for (let i = 0; i < bot.values.length - 1; i++) if (bot.values[i] === bot.values[i + 1]) { bot.values[i] *= 2; bot.values.splice(i + 1, 1); bot.values.sort((a, b) => b - a); m = true; break; } }
   }
+  // إيموجي البوت حسب الموقف (بمهلة كي لا يُكثر) — يظهر في اللعب وفي خلفية المنيو
+  function botSay(bot, ems, chance) {
+    if (!bot || !bot.alive || bot._emoCD > 0) return;
+    if (chance != null && Math.random() > chance) return;
+    bot._emoCD = rand(4, 8);
+    bot.emojiEm = ems[(Math.random() * ems.length) | 0]; bot.emojiLife = 2;
+  }
   function applyBotPowerup(bot, type) {
     if (type === "speed") bot.speedTimer = CONFIG.SPEEDCUBE_TIME * botSpeedFrac(); // مدة أقصر، تقترب من اللاعب مع المستوى
     else if (type === "radar") bot.radarTimer = CONFIG.RADAR_TIME;
@@ -1547,6 +1554,7 @@
     else if (type === "shield" || type === "bomb" || type === "freeze") bot.shieldTimer = CONFIG.SHIELD_TIME; // البوت يستعملها دفاعياً
     else if (type === "double") bot.values = bot.values.map((v) => v * 2);
     else if (type === "half") { bot.values = bot.values.map((v) => v / 2).filter((v) => v >= 2); bot.values.sort((a, b) => b - a); if (!bot.values.length) killBot(bot); }
+    botSay(bot, type === "half" ? ["😱", "😭", "😖"] : type === "double" ? ["🤑", "🔥", "💪"] : ["👍", "✨", "😎"], 0.85); // ردّ فعل على القوة
   }
   function severBotTail(bot) { if (bot.values.length <= 1) return; const v = bot.values.pop(); const d = segDistOf(bot.values); const pt = pointAtOf(bot.path, d[d.length - 1] || 0); dropLoose(pt.x, pt.y, v); }
   function applyCutToBot(bot, index) {
@@ -1581,10 +1589,10 @@
     bot.boost = false;
     const threatened = nThreat && tD < 22 * (0.6 + smart);
     // 1) الهروب من الأقوى (أقوى دفعاً مع الذكاء، واندفاع عند الاقتراب)
-    if (threatened) { const a = Math.atan2(hy - nThreat.y, hx - nThreat.x), w = 2.8 * (1 + smart * 0.5); ax += Math.cos(a) * w; ay += Math.sin(a) * w; if (tD < 11 && bot.stamina > 0.3) bot.boost = true; }
+    if (threatened) { const a = Math.atan2(hy - nThreat.y, hx - nThreat.x), w = 2.8 * (1 + smart * 0.5); ax += Math.cos(a) * w; ay += Math.sin(a) * w; if (tD < 11 && bot.stamina > 0.3) bot.boost = true; if (tD < 13) botSay(bot, ["😱", "😨", "😰", "🥵"], 0.5); }
     // 2) قرار مهاجمة الأضعف القريب (الهجوم أولى من الطعام، ولا يطارد إن كان مهدّداً إلا إن الفريسة أقرب من الخطر)
     const wantPrey = nPrey && pD < 30 && (!threatened || pD < tD * 0.6) && Math.random() < 0.4 + smart * 0.6;
-    if (wantPrey) { const a = Math.atan2(nPrey.y - hy, nPrey.x - hx), w = (1.4 + smart * 1.6) * (pD < 12 ? 1.7 : 1); ax += Math.cos(a) * w; ay += Math.sin(a) * w; if (pD < 13 && bot.stamina > 0.3) bot.boost = true; } // انقضاض
+    if (wantPrey) { const a = Math.atan2(nPrey.y - hy, nPrey.x - hx), w = (1.4 + smart * 1.6) * (pD < 12 ? 1.7 : 1); ax += Math.cos(a) * w; ay += Math.sin(a) * w; if (pD < 13 && bot.stamina > 0.3) bot.boost = true; if (pD < 16) botSay(bot, ["😈", "😏", "👀", "🤙"], 0.4); } // انقضاض
     // 3) أفضل هدف للأكل: طعام، أو قوة نافعة (أولوية أعلى)؛ ويتجنّب القوة الضارّة ÷2
     let bf = null, bd = 1e9, bw = 1.3;
     for (const f of foods) { if (f.value > hv || (f.noEat && now < f.noEat)) continue; const d = Math.hypot(f.x - hx, f.y - hy); if (d > VISION) continue; if (d < bd) { bd = d; bf = f; bw = 1.3; } }
@@ -1630,6 +1638,7 @@
     // أثر السرعة على البوت (مثل اللاعب)
     if (((bot.boost && bot.stamina > 0.02) || bot.speedTimer > 0) && Math.random() < 0.7) { const t = tailOf(bot); spawnTrailAt(t.x, t.y, bot.angle, bot.speedTimer > 0); }
     if (bot.emojiLife > 0) bot.emojiLife -= dt;
+    if (bot._emoCD > 0) bot._emoCD -= dt;
   }
   // هجوم البوت على اللاعب/البوتات/الخصوم
   function botOffense(bot, dt) {
@@ -1649,6 +1658,7 @@
     bot._obiteCD = 0.5;
     const cube = T.body[k], bv = k === 0 ? T.head : (cube.value != null ? cube.value : cube.v);
     botEat(bot, bv);
+    botSay(bot, k === 0 ? ["😎", "🔥", "😂", "💪", "😈"] : ["😏", "😎", "👊"], k === 0 ? 1 : 0.5); // فرح بعد العضّة (أكثر عند أكل الرأس)
     if (T.kind === "me") applyCut(k);
     else if (T.kind === "bot") applyCutToBot(T.ref, k);
     else if (T.kind === "remote") { const c = clientConns.get(T.ref.id); if (c && c.open) { try { c.send({ t: "cut", index: k }); } catch (e) {} } }
@@ -2083,7 +2093,7 @@
   };
 
   // ===== الواجهة: الطيّ + اللغات =====
-  let lbOpen = true, statsOpen = true, curLang = "en";
+  let lbOpen = true, statsOpen = false, curLang = "en";
   window.toggleStats = function () { statsOpen = !statsOpen; document.getElementById("stats-body").classList.toggle("hidden", !statsOpen); document.getElementById("stats-arrow").textContent = statsOpen ? "▾" : "▸"; };
   window.toggleLB = function () { if (spectating) return; lbOpen = !lbOpen; document.getElementById("lb-arrow").textContent = lbOpen ? "▾" : "▸"; };
 
@@ -2113,11 +2123,20 @@
       ul.appendChild(li);
     }
   }
-  window.toggleLangMenu = function () {
+  window.toggleLangMenu = function (e) {
+    if (e) e.stopPropagation(); // لا يصل النقر لمغلِّق "خارج القائمة"
     const m = document.getElementById("lang-menu"); const willOpen = m.classList.contains("hidden");
     m.classList.toggle("hidden");
-    if (willOpen) { const s = document.getElementById("lang-search"); s.value = ""; buildLangList(""); s.focus(); }
+    if (willOpen) { const s = document.getElementById("lang-search"); s.value = ""; buildLangList(""); } // بلا تركيز تلقائي على البحث
   };
+  window.closeLangMenu = function () { const m = document.getElementById("lang-menu"); if (m) m.classList.add("hidden"); };
+  // النقر خارج قائمة اللغة أو قائمة ☰ يغلقها
+  document.addEventListener("pointerdown", (e) => {
+    const lm = document.getElementById("lang-menu");
+    if (lm && !lm.classList.contains("hidden") && !e.target.closest("#lang-dd")) lm.classList.add("hidden");
+    const ec = document.querySelector(".end-cluster");
+    if (ec && ec.classList.contains("open") && !e.target.closest(".end-cluster")) ec.classList.remove("open");
+  });
   window.filterLangs = function () { buildLangList(document.getElementById("lang-search").value); };
   // القائمة الجانبية (الوضع الأفقي): تجمع كل أزرار الزوايا + التحميل + الإغلاق
   window.toggleSideMenu = function () { const c = document.querySelector(".end-cluster"); if (c) c.classList.toggle("open"); };
@@ -2733,8 +2752,13 @@
       card("⏱️", Math.floor((stats.playSec || 0) / 60) + "m", t("stTime")) +
       card("🏆", stats.cups || 0, t("stCups")) +
       card("🏅", got + "/" + ACHIEVEMENTS.length, t("achievements"));
-    document.getElementById("profile-ach").innerHTML = ACHIEVEMENTS.map((a) =>
-      `<div class="ach ${stats.ach[achId(a)] ? "got" : ""}"><div class="ach-ic">${a.icon}</div><div class="ach-nm">${achName(a)}</div></div>`).join("");
+    // الإنجازات مقسّمة حسب النوع، كل قسم في سطر أفقي قابل للتمرير
+    const groups = ["num", "kills", "games", "play", "king", "cup"];
+    document.getElementById("profile-ach").innerHTML = groups.map((g) => {
+      const items = ACHIEVEMENTS.filter((a) => a.type === g).map((a) =>
+        `<div class="ach ${stats.ach[achId(a)] ? "got" : ""}"><div class="ach-ic">${a.icon}</div><div class="ach-nm">${achName(a)}</div></div>`).join("");
+      return items ? `<div class="ach-row">${items}</div>` : "";
+    }).join("");
     document.getElementById("profile-screen").classList.remove("hidden");
   };
   window.closeProfile = function () { document.getElementById("profile-screen").classList.add("hidden"); };
