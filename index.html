@@ -64,11 +64,11 @@
   <!-- ===== شاشة البداية ===== -->
   <div id="start-screen" class="overlay">
     <div class="panel menu-panel">
-      <!-- زاوية: زرّ الإغلاق وحده -->
+      <!-- زاوية: زرّ إغلاق اللعبة (نصّاً) وحده -->
       <div class="corner-cluster start-cluster">
-        <button id="quit-btn" class="corner-btn danger" onclick="quitGame()" data-i18n-title="closeGame">✕</button>
+        <button id="quit-btn" class="corner-quit" onclick="quitGame()">✕ <span data-i18n="closeGame">إغلاق اللعبة</span></button>
       </div>
-      <!-- الزاوية المقابلة: شبكة 2×2 (الملف | اللغة) و(الإعدادات | ؟)؛ وتتحوّل لقائمة جانبية صغيرة في الوضع الأفقي -->
+      <!-- الزاوية المقابلة: شبكة 2×2 (الملف | اللغة) و(الإعدادات | ؟)؛ وتتحوّل لقائمة منسدلة صغيرة في الوضع الأفقي -->
       <div class="corner-cluster end-cluster">
         <button id="menu-fab" class="menu-fab" onclick="toggleSideMenu()" aria-label="menu">☰</button>
         <div class="end-items">
@@ -82,10 +82,6 @@
           </div>
           <button id="settings-btn" class="corner-btn" onclick="closeSideMenu();openSettings()" data-i18n-title="settings">⚙️</button>
           <button id="help-btn" class="corner-btn" onclick="closeSideMenu();openHelp()" data-i18n-title="help">❓</button>
-          <!-- عناصر القائمة الجانبية (الوضع الأفقي): تنزيل بالاسم + إغلاق -->
-          <button class="side-dl ls-only" onclick="closeSideMenu();downloadAndroid()"><span data-i18n="dlForAndroid">تنزيل للأندرويد</span></button>
-          <button class="side-dl ls-only" onclick="closeSideMenu();downloadIphone()"><span data-i18n="dlForIphone">تنزيل للآيفون</span></button>
-          <button class="side-close ls-only" onclick="quitGame()">✕ <span data-i18n="closeGame">إغلاق</span></button>
         </div>
       </div>
 
@@ -103,10 +99,10 @@
       </div>
 
       <input id="name-input" type="text" maxlength="14" autocomplete="off" enterkeyhint="done" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"/>
-      <!-- تنزيل مباشر: أندرويد + آيفون جنباً إلى جنب (بدل زر يفتح ديالوق) -->
+      <!-- تنزيل مباشر: أندرويد + آيفون جنباً إلى جنب (نصّ فقط) -->
       <div id="dl-row">
-        <button class="ghost-btn dl-os" onclick="downloadAndroid()">🤖 <span data-i18n="dlForAndroid">تنزيل للأندرويد</span></button>
-        <button class="ghost-btn dl-os" onclick="downloadIphone()">🍎 <span data-i18n="dlForIphone">تنزيل للآيفون</span></button>
+        <button class="ghost-btn dl-os" onclick="downloadAndroid()"><span data-i18n="dlForAndroid">تنزيل للأندرويد</span></button>
+        <button class="ghost-btn dl-os" onclick="downloadIphone()"><span data-i18n="dlForIphone">تنزيل للآيفون</span></button>
       </div>
       </div><!-- /menu-col-a -->
 
