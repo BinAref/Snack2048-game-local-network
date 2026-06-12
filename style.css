@@ -533,11 +533,15 @@ body::after {
 
 /* ===== شاشة الإيقاف ===== */
 .pause-panel { max-width: 320px; }
+/* ديالوق ما قبل اللعب (البوتات + الشكل + ابدأ) */
+.pregame-panel { max-width: 360px; }
+.pregame-panel .ai-shape-row { margin: 18px 0 20px; }
 .pause-actions { display: flex; flex-direction: column; gap: 14px; margin-top: 22px; }
 .pause-actions .ghost-btn { margin-bottom: 0; }
-.pause-toggles { display: flex; gap: 12px; justify-content: center; align-items: center; flex-wrap: nowrap; }
-.pause-toggles .toggle-row { margin-bottom: 0; }
-.pause-sound-btn { margin: 0; padding: 8px 14px; white-space: nowrap; }
+.pause-toggles { display: flex; gap: 10px; justify-content: center; align-items: stretch; flex-wrap: nowrap; }
+.pause-toggles .ai-row, .pause-sound-btn { flex: 1 1 0; min-width: 0; } /* عرض متساوٍ بين سويتش البوتات وزر الصوت */
+.pause-toggles .toggle-row { margin-bottom: 0; justify-content: center; }
+.pause-sound-btn { margin: 0; padding: 7px 10px; font-size: 12px; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 5px; }
 .over-menu { margin-top: 10px; margin-bottom: 0; }
 
 /* إخفاء قسم الانضمام عند القفل */
@@ -716,21 +720,29 @@ body.touch #stored { left: auto; right: calc(14px + env(safe-area-inset-right));
   #over-hud .over-btns .main-btn, #over-hud .over-btns .ghost-btn { padding: 7px 16px; font-size: 13px; }
   body.spectating #lb-list { max-height: 56vh; }
 
-  /* المنيو في الأفقي: تخطيط عريض بعمودين (بلا تمرير) */
+  /* الأفقي: الشعار والاسم جنباً إلى جنب (في الوضعين) */
   .overlay { align-items: center; }
-  .menu-panel { display: flex; flex-direction: row; align-items: stretch; justify-content: center; gap: 22px;
-    max-width: min(94vw, 800px); width: 94%; max-height: 94vh; overflow-y: auto; padding: 16px 22px; }
-  .menu-col { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; flex: 1 1 0; min-width: 0; }
-  .menu-col-b { border-inline-start: 1px solid rgba(0,212,255,0.14); padding-inline-start: 22px; }
-  /* الشعار والاسم جنباً إلى جنب في الأفقي فقط */
-  .logo-block { flex-direction: row; gap: 14px; margin-bottom: 4px; }
+  .menu-panel { max-height: 94vh; overflow-y: auto; padding: 14px 20px; }
+  .logo-block { flex-direction: row; gap: 14px; margin-bottom: 6px; }
   .logo-ring { width: 60px; height: 60px; }
   .game-title { align-items: flex-start; }
   .game-title .t-snake { font-size: 34px; letter-spacing: 2px; }
   .game-title .t-2048 { font-size: 22px; letter-spacing: 6px; }
-  .menu-panel #name-input { margin: 4px 0; }
-  .menu-panel .ai-shape-row { margin: 4px 0; }
-  .menu-panel #mode-switch { margin: 4px 0; }
+  .menu-panel #name-input { margin: 5px 0; }
+  .menu-panel #mode-switch { margin: 6px 0; }
+
+  /* الجماعي فقط: عمودان جنباً إلى جنب بأحجام أصغر (بلا تمرير) — الاسم/الشعار/خانة الاسم على جنب والبقية على الجنب الآخر */
+  .menu-panel.mode-multi { display: flex; flex-direction: row; align-items: stretch; justify-content: center; gap: 18px; max-width: min(94vw, 760px); width: 94%; }
+  .menu-panel.mode-multi .menu-col { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; flex: 1 1 0; min-width: 0; }
+  .menu-panel.mode-multi .menu-col-b { border-inline-start: 1px solid rgba(0,212,255,0.14); padding-inline-start: 18px; justify-content: flex-start; }
+  .menu-panel.mode-multi .logo-ring { width: 50px; height: 50px; }
+  .menu-panel.mode-multi .game-title .t-snake { font-size: 27px; letter-spacing: 1px; }
+  .menu-panel.mode-multi .game-title .t-2048 { font-size: 18px; letter-spacing: 4px; }
+  .menu-panel.mode-multi .main-btn { padding: 9px 16px; font-size: 13px; }
+  .menu-panel.mode-multi .status-msg { font-size: 11px; min-height: 14px; }
+  .menu-panel.mode-multi #section-join { padding: 7px; gap: 6px; }
+  .menu-panel.mode-multi .divider { margin: 2px 0; }
+  .menu-panel.mode-multi .lan-title { font-size: 11px; margin-bottom: 4px; }
 
   /* كل أزرار الزوايا في قائمة جانبية منسدلة شبكية (☰) — زرّان جنب بعض، والتنزيل/الإغلاق بعرض كامل */
   .start-cluster { display: none; }

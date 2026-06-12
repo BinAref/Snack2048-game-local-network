@@ -2149,8 +2149,18 @@
     document.getElementById("btn-multi").classList.toggle("active", mode === "multi");
     document.getElementById("panel-solo").classList.toggle("hidden", mode !== "solo");
     document.getElementById("panel-multi").classList.toggle("hidden", mode !== "multi");
+    const mp = document.querySelector(".menu-panel"); if (mp) mp.classList.toggle("mode-multi", mode === "multi"); // الأفقي: عمودان للجماعي فقط
     if (mode !== "multi") closeLobby();
   };
+  // ديالوق ما قبل اللعب: اختيار البوتات/الشكل ثم «ابدأ» (للفردي وللمضيف)
+  let pendingStart = null;
+  function openPregame(fn) {
+    pendingStart = fn;
+    try { document.getElementById("ai-toggle").checked = aiEnabled; } catch (e) {}
+    document.getElementById("pregame-screen").classList.remove("hidden");
+  }
+  window.closePregame = function () { document.getElementById("pregame-screen").classList.add("hidden"); pendingStart = null; };
+  window.confirmPregame = function () { document.getElementById("pregame-screen").classList.add("hidden"); const fn = pendingStart; pendingStart = null; if (fn) fn(); };
   let roomLocked = false, hostLobby = false; // مفتوح = عامة، مغلق = خاصة (برمز)
   window.toggleLock = function () {
     roomLocked = !roomLocked;
@@ -2209,7 +2219,7 @@
     if (!peerLoaded()) { mStatus(t("netTimeout"), true); return; }
     setName();
     if (roomLocked) {
-      if (online && isHost) { hostLobby = false; showRoomCodeHud(roomCode); beginPlay("host"); } // ابدأ اللعب كمضيف
+      if (online && isHost) openPregame(() => { hostLobby = false; showRoomCodeHud(roomCode); beginPlay("host"); }); // المضيف: اختر البوتات/الشكل ثم ابدأ
       else openLobby(); // أنشئ الغرفة أولاً (يظهر الرمز) ثم اضغط مرة أخرى للبدء
     } else { mStatus(t("connecting")); startPublic(); }
   };
@@ -2567,7 +2577,7 @@
     requestAnimationFrame(loop);
   }
 
-  document.getElementById("play-btn").addEventListener("click", startGame);
+  document.getElementById("play-btn").addEventListener("click", () => openPregame(startGame)); // الفردي: اختر البوتات/الشكل أولاً
   document.getElementById("restart-btn").addEventListener("click", () => { restart(); });
   document.getElementById("win-restart-btn").addEventListener("click", () => { restart(); });
   document.getElementById("room-code-hud-copy").addEventListener("click", () => { copyText(document.getElementById("room-code-hud-val").textContent); });
