@@ -305,7 +305,7 @@ body::after {
 .corner-cluster { position: absolute; top: 14px; z-index: 6; display: flex; }
 .start-cluster { inset-inline-start: 14px; flex-direction: row; gap: 8px; align-items: center; }
 .end-cluster { inset-inline-end: 14px; }
-.end-items { display: grid; grid-template-columns: auto auto; gap: 6px; align-items: center; justify-items: end; } /* شبكة 2×2: (الملف | اللغة) و(الإعدادات | ؟) */
+.end-items { display: grid; grid-template-columns: auto auto; gap: 6px; align-items: center; justify-items: center; direction: ltr; } /* شبكة 2×2 باتجاه ثابت: (الملف | اللغة) و(الإعدادات | ؟) يساراً→يميناً */
 .end-row { display: flex; gap: 8px; align-items: center; }
 .menu-fab { display: none; width: 40px; height: 36px; border-radius: var(--radius-sm); border: 1px solid var(--border-neon); background: rgba(0,212,255,0.12); color: var(--text-primary); font-size: 18px; cursor: pointer; align-items: center; justify-content: center; }
 .corner-btn { width: 38px; height: 34px; border-radius: var(--radius-sm); flex: 0 0 auto;
