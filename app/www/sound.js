@@ -18,12 +18,12 @@
     try {
       ctx = new AC();
       master = ctx.createGain(); master.gain.value = mutedAll ? 0 : 1; master.connect(ctx.destination);
-      sfxGain = ctx.createGain(); sfxGain.gain.value = 0.6 * sfxVol; sfxGain.connect(master);
-      musicGain = ctx.createGain(); musicGain.gain.value = 0.24 * musicVol; musicGain.connect(master);
+      sfxGain = ctx.createGain(); sfxGain.gain.value = 0.85 * sfxVol; sfxGain.connect(master);
+      musicGain = ctx.createGain(); musicGain.gain.value = 0.34 * musicVol; musicGain.connect(master);
     } catch (e) { ctx = null; }
     return ctx;
   }
-  function applyGains() { if (sfxGain) sfxGain.gain.value = 0.6 * sfxVol; if (musicGain) musicGain.gain.value = 0.24 * musicVol; }
+  function applyGains() { if (sfxGain) sfxGain.gain.value = 0.85 * sfxVol; if (musicGain) musicGain.gain.value = 0.34 * musicVol; }
   function resume() { try { if (ctx && ctx.state === "suspended") ctx.resume(); } catch (e) {} }
   function persist() { try { localStorage.setItem("snake2048_musicv", musicVol); localStorage.setItem("snake2048_sfxv", sfxVol); localStorage.setItem("snake2048_mute", mutedAll ? "1" : "0"); } catch (e) {} }
 

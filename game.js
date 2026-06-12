@@ -88,8 +88,9 @@
   const vibrate = (ms) => { try { if (hapticsOn && window.Sound) Sound.vibrate(ms); } catch (e) {} };
   // إحصائيات اللاعب الدائمة + الإنجازات + شريط القتل
   let maxReign = 0, killFeed = [];
-  let stats = { games: 0, kills: 0, playSec: 0, cups: 0, best: 0, reign: 0, ach: {} };
+  let stats = { games: 0, kills: 0, playSec: 0, cups: 0, best: 0, reign: 0, medals: [0, 0, 0, 0, 0, 0, 0], ach: {} };
   try { const s = JSON.parse(localStorage.getItem("snake2048_stats")); if (s) stats = Object.assign(stats, s); } catch (e) {}
+  if (!Array.isArray(stats.medals)) stats.medals = [0, 0, 0, 0, 0, 0, 0]; // عدد كل نوع ميدالية حازها اللاعب
   function saveStats() { try { localStorage.setItem("snake2048_stats", JSON.stringify(stats)); } catch (e) {} }
   function normAngle(d) { // تطبيع زاوية إلى [-π,π] بأمان (يتحمّل Infinity/NaN ولا يدور أبداً)
     if (!isFinite(d)) return 0;
@@ -1144,6 +1145,7 @@
         medal.reign = 0;
         if (medal.level < 6) medal.level++;
         const m = MEDALS[medal.level];
+        if (leader.id === myId && medal.level >= 1 && medal.level <= 6) { stats.medals[medal.level] = (stats.medals[medal.level] || 0) + 1; saveStats(); checkAchievements(); } // اللاعب حاز ميدالية من هذا النوع
         const msg = "🏅 " + leader.name + " " + m.icon;
         notify(msg);
         if (isHost) { hostBroadcast({ t: "notify", text: msg }); hostBroadcast({ t: "medal", level: medal.level, leaderId: medal.leaderId, leaderName: medal.leaderName }); }
@@ -2716,28 +2718,43 @@
     // الوقت (بالثواني): 10،30،60،120،180،300،600 دقيقة
     { type: "play", v: 600, icon: "⏱️" }, { type: "play", v: 1800, icon: "⏱️" }, { type: "play", v: 3600, icon: "⏳" }, { type: "play", v: 7200, icon: "⏳" },
     { type: "play", v: 10800, icon: "🕰️" }, { type: "play", v: 18000, icon: "🕰️" }, { type: "play", v: 36000, icon: "📅" },
-    // الملك (الصدارة المتواصلة)
-    { type: "king", v: 360, icon: "👑" }, { type: "king", v: 1800, icon: "👑" },
+    // الملك (الصدارة المتواصلة): 6،15،30،60 دقيقة
+    { type: "king", v: 360, icon: "👑" }, { type: "king", v: 900, icon: "👑" }, { type: "king", v: 1800, icon: "👑" }, { type: "king", v: 3600, icon: "👑" },
+    // الميداليات: لكل نوع (1..6) عدد 1،5،10،30،50 — كل نوع في صفّ، تظهر الصفوف بالتدريج
+    ...[1, 2, 3, 4, 5, 6].flatMap((lvl) => [1, 5, 10, 30, 50].map((v) => ({ type: "medal", lvl, v, icon: MEDALS[lvl].icon }))),
     // الكؤوس
     { type: "cup", v: 1, icon: "🏆" }, { type: "cup", v: 5, icon: "🏆" }, { type: "cup", v: 10, icon: "🥇" }, { type: "cup", v: 30, icon: "🥇" }, { type: "cup", v: 50, icon: "🏆" },
   ];
-  const achId = (a) => a.type + a.v;
+  const achId = (a) => a.type + (a.lvl != null ? a.lvl + "_" : "") + a.v;
   function achTest(a, s) {
     if (a.type === "num") return (s.best || 0) >= a.v;
     if (a.type === "kills") return (s.kills || 0) >= a.v;
     if (a.type === "games") return (s.games || 0) >= a.v;
     if (a.type === "play") return (s.playSec || 0) >= a.v;
     if (a.type === "king") return (s.reign || 0) >= a.v;
+    if (a.type === "medal") return ((s.medals && s.medals[a.lvl]) || 0) >= a.v;
     if (a.type === "cup") return (s.cups || 0) >= a.v;
     return false;
   }
-  function achName(a) {
-    if (a.type === "num") return t("achReach") + " " + fmtNum(a.v);
+  function achName(a) { // تسمية قصيرة تحت الأيقونة
+    if (a.type === "num") return fmtNum(a.v);
     if (a.type === "kills") return a.v + " " + t("achKills");
     if (a.type === "games") return a.v + " " + t("stGames");
-    if (a.type === "play") return t("achPlay") + " " + Math.round(a.v / 60) + "m";
+    if (a.type === "play") return Math.round(a.v / 60) + "m";
     if (a.type === "king") return "👑 " + Math.round(a.v / 60) + "m";
+    if (a.type === "medal") return "×" + a.v;
     if (a.type === "cup") return a.v + " " + t("stCups");
+    return "";
+  }
+  // شرح الإنجاز (للتلميح) — جملة توضّح المقصود
+  function achDesc(a) {
+    if (a.type === "num") return t("dNum").replace("{n}", fmtNum(a.v));
+    if (a.type === "kills") return t("dKills").replace("{n}", a.v);
+    if (a.type === "games") return t("dGames").replace("{n}", a.v);
+    if (a.type === "play") return t("dPlay").replace("{n}", Math.round(a.v / 60));
+    if (a.type === "king") return t("dKing").replace("{n}", Math.round(a.v / 60));
+    if (a.type === "medal") return t("dMedal").replace("{n}", a.v).replace("{m}", MEDALS[a.lvl].icon);
+    if (a.type === "cup") return t("dCup").replace("{n}", a.v);
     return "";
   }
   function checkAchievements() {
@@ -2764,14 +2781,22 @@
       card("🏆", stats.cups || 0, t("stCups")) +
       card("🏅", got + "/" + ACHIEVEMENTS.length, t("achievements"));
     // الإنجازات مقسّمة حسب النوع، كل قسم في سطر أفقي قابل للتمرير
-    const groups = ["num", "kills", "games", "play", "king", "cup"];
-    document.getElementById("profile-ach").innerHTML = groups.map((g) => {
-      const items = ACHIEVEMENTS.filter((a) => a.type === g).map((a) => {
-        const got = stats.ach[achId(a)], tip = achName(a) + (got ? " ✓" : " 🔒");
+    const renderRow = (arr) => {
+      const items = arr.map((a) => {
+        const got = stats.ach[achId(a)], tip = achDesc(a) + (got ? " ✓" : " 🔒");
         return `<div class="ach ${got ? "got" : ""}" data-tip="${escapeHtml(tip)}"><div class="ach-ic">${a.icon}</div><div class="ach-nm">${achName(a)}</div></div>`;
       }).join("");
       return items ? `<div class="ach-row">${items}</div>` : "";
-    }).join("");
+    };
+    let html = "";
+    for (const g of ["num", "kills", "games", "play", "king"]) html += renderRow(ACHIEVEMENTS.filter((a) => a.type === g));
+    // الميداليات: كل نوع صفّ — يظهر صفّ النوع L إن كان L=1 أو حاز اللاعب ميدالية واحدة على الأقل من النوع السابق (كشف تدريجي)
+    for (let lvl = 1; lvl <= 6; lvl++) {
+      if (lvl > 1 && !((stats.medals[lvl - 1] || 0) >= 1)) continue;
+      html += renderRow(ACHIEVEMENTS.filter((a) => a.type === "medal" && a.lvl === lvl));
+    }
+    html += renderRow(ACHIEVEMENTS.filter((a) => a.type === "cup"));
+    document.getElementById("profile-ach").innerHTML = html;
     document.getElementById("profile-screen").classList.remove("hidden");
   };
   window.closeProfile = function () { document.getElementById("profile-screen").classList.add("hidden"); };
