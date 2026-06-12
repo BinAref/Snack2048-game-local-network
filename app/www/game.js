@@ -2202,10 +2202,13 @@
       // درب‑داون ملاصقة للزر، محاذاةً لحافته القريبة من القراءة، وتنقلب للأعلى إن لم يكفِ الأسفل
       const r = document.getElementById("lang-btn").getBoundingClientRect();
       const mw = Math.min(260, window.innerWidth - 16);
-      const shift = mw * 0.5 + 20; // إزاحة نحو منتصف الشاشة بنصف عرض الدرب‑داون وأكثر قليلاً
-      const btnCenter = r.left + r.width / 2, scrCenter = window.innerWidth / 2;
-      // إن كان الزر في النصف الأيمن من الشاشة تنفتح القائمة لليسار (نحو المنتصف)، والعكس
-      let left = btnCenter > scrCenter ? (r.right - mw - shift) : (r.left + shift);
+      const shift = mw * 0.5 + 20; // إزاحة نحو داخل القائمة بنصف عرض الدرب‑داون وأكثر قليلاً
+      const rtl = document.documentElement.dir === "rtl";
+      const fab = document.getElementById("menu-fab");
+      const inSideMenu = fab && getComputedStyle(fab).display !== "none"; // الوضع الأفقي: الزر داخل قائمة ☰ بالزاوية المقابلة
+      // الزاوية الاعتيادية (inline-end) تنفتح نحو داخل القائمة (inline-start)؛ وقائمة ☰ (inline-start) تنفتح نحو الداخل (inline-end)
+      const openLeft = inSideMenu ? rtl : !rtl;
+      let left = openLeft ? (r.right - mw - shift) : (r.left + shift);
       left = Math.max(8, Math.min(left, window.innerWidth - mw - 8));
       const below = window.innerHeight - r.bottom - 12, above = r.top - 12, openUp = below < 200 && above > below;
       m.style.position = "fixed"; m.style.left = left + "px"; m.style.width = mw + "px";
