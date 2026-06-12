@@ -1005,6 +1005,7 @@
   // حالة اللعبة + الميداليات
   // =====================================================================
   let state = "menu", lastT = 0, now = 0, playTime = 0, spectating = false, spectateTarget = null, specHudT = 0;
+  let demoMode = false, demoCX = 0, demoCY = 0; // خلفية المنيو: عرض حيّ لبوتات تلعب وحدها
   let fpsAvg = 60, perfScale = 1, perfHold = 0; // أداء تكيّفي
   let highScore = 0;
   try { highScore = parseInt(localStorage.getItem("snake2048_high") || "0") || 0; } catch (e) {}
@@ -1055,6 +1056,7 @@
     syncPowers();
   }
   function beginPlay(mode) {
+    demoMode = false; // أوقف خلفية العرض عند بدء اللعب
     const nm = (document.getElementById("name-input").value || "").trim();
     playerName = nm || t("you");
     try { localStorage.setItem("snake2048_name", playerName); } catch (e) {}
@@ -2092,6 +2094,8 @@
     document.querySelectorAll("[data-i18n-title]").forEach((el) => (el.title = t(el.getAttribute("data-i18n-title"))));
     document.getElementById("name-input").placeholder = t("namePh");
     document.getElementById("lang-search").placeholder = t("search");
+    // حقل رمز الغرفة بعرض نصّ الهنت + حرفين تقريباً
+    { const jc = document.getElementById("join-code-input"); if (jc) jc.size = Math.max(10, (t("joinPh") || "").length + 2); }
     const meta = (window.LANGS || []).find((l) => l.code === curLang);
     const rtl = (window.I18N[curLang] && window.I18N[curLang]._rtl) || (meta && meta.rtl);
     document.documentElement.dir = rtl ? "rtl" : "ltr";
@@ -2415,6 +2419,7 @@
 
   function backToMenu() {
     online = false; isHost = false; migrating = false; state = "menu"; exitSpectate(); remotes.clear(); bots.clear(); hostConn = null; clientConns.clear();
+    startDemo(); // أعد تشغيل خلفية العرض الحيّة
     hideRoomCodeHud(); document.body.classList.remove("in-game");
     hostLobby = false;
     if (localNet && Nearby) { try { Nearby.stop(); } catch (_) {} } localNet = false;
@@ -2548,6 +2553,28 @@
     for (const id of [...remotes.keys()]) if (!ids.has(id)) remotes.delete(id);
   }
 
+  // ===== خلفية المنيو: عرض حيّ (بوتات تلعب وحدها) بدل شاشة سوداء =====
+  function startDemo() {
+    demoMode = true; online = false; isHost = false; spectating = false;
+    remotes.clear(); resetBots();
+    CONFIG.WORLD = 36; gameLevel = 1; mapRotation = (Math.random() * MAP_PATTERNS.length) | 0; genMap();
+    foods = []; powerups = []; dangerProjectiles = [];
+    for (let i = 0; i < foodTarget(); i++) foods.push(spawnFood());
+    for (let i = 0; i < powerupTarget(); i++) powerups.push(spawnPowerup());
+    for (let i = 0; i < 9; i++) addBot({ strength: rand(0.2, 0.7) });
+    playTime = 0; demoCX = 0; demoCY = 0;
+  }
+  function demoStep(dt) {
+    playTime += dt;
+    updateDangerProjectiles(dt); moveFoods(dt); maintainFood(); managePowerups(dt);
+    for (const bot of [...bots.values()]) stepBot(bot, dt);
+    for (const bot of [...bots.values()]) if (bot.alive) botOffense(bot, dt);
+    let best = null, bs = -1; // الكاميرا تتبع المتصدّر بنعومة
+    for (const b of bots.values()) { if (!b.alive) continue; const s = botScore(b); if (s > bs) { bs = s; best = b; } }
+    if (best) { const k = Math.min(1, dt * 1.6); demoCX += (best.x - demoCX) * k; demoCY += (best.y - demoCY) * k; }
+    updateCamera(demoCX, demoCY);
+  }
+
   // =====================================================================
   // الحلقة
   // =====================================================================
@@ -2563,6 +2590,7 @@
       if (state === "playing") update(dt);
       else {
         updateParticles(dt); updateEmojis(dt); updateRings(dt); updateDebris(dt); updateKillFeed(dt);
+        if (state === "menu" && demoMode) demoStep(dt); // خلفية حيّة في المنيو
         if (state === "dying") { deathTimer -= dt; if (deathTimer <= 0) finalizeOver(); }
         if (state === "won") fireworksTick(dt); // ألعاب نارية
         if (spectating) { if (!online) hostKeepAlive(dt); spectateCam(); specHudT += dt; if (specHudT >= 0.2) { specHudT = 0; updateHUD(); } } // مشاهدة: حاكِ، اتبع الهدف، وحدّث المتصدّرين ~5 مرّات/ثانية (لتثبيت النقر)
@@ -2572,7 +2600,7 @@
           lastNetSend += dt; if (lastNetSend >= 0.05) { lastNetSend = 0; hostBroadcast(snakesMsg()); if ((++netItemsCounter) % 4 === 0) hostBroadcast(itemsMsg()); }
         }
       }
-      if (state !== "menu") render();
+      if (state !== "menu" || demoMode) render();
     } catch (e) { console.error(e); }
     requestAnimationFrame(loop);
   }
@@ -2744,6 +2772,7 @@
   try { const installed = isNativeApp || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || navigator.standalone; if (installed) { const d = document.getElementById("dl-row"); if (d) d.classList.add("hidden"); } } catch (e) {}
   try { document.getElementById("ai-toggle").checked = aiEnabled; } catch (e) {}
   gameLevel = 1; resetSnake(); initItems(); updateCamera(0, 0);
+  startDemo(); // خلفية المنيو الحيّة
   document.getElementById("highscore").textContent = fmtNum(highScore);
   // تلميح أول مرّة: افتح "كيف تلعب" تلقائياً للاعب الجديد
   try { if (!localStorage.getItem("snake2048_seen_help")) { localStorage.setItem("snake2048_seen_help", "1"); setTimeout(() => { try { if (state === "menu") window.openHelp(); } catch (e) {} }, 700); } } catch (e) {}
