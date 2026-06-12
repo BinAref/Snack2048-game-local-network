@@ -2741,7 +2741,7 @@
   addEventListener("pointerdown", function startMenuOnce() { try { if (window.Sound && state === "menu") Sound.startMenu(); } catch (e) {} removeEventListener("pointerdown", startMenuOnce); }, { once: true });
   if (isNativeApp) { try { document.getElementById("local-lan").classList.remove("hidden"); } catch (e) {} } // لعب محلي في التطبيق فقط
   // إن كانت اللعبة مثبّتة بالفعل (تطبيق أصلي أو PWA مستقلّة) فلا داعي لزر التحميل
-  try { const installed = isNativeApp || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || navigator.standalone; if (installed) { const d = document.getElementById("dl-game-btn"); if (d) d.classList.add("hidden"); } } catch (e) {}
+  try { const installed = isNativeApp || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || navigator.standalone; if (installed) { const d = document.getElementById("dl-row"); if (d) d.classList.add("hidden"); } } catch (e) {}
   try { document.getElementById("ai-toggle").checked = aiEnabled; } catch (e) {}
   gameLevel = 1; resetSnake(); initItems(); updateCamera(0, 0);
   document.getElementById("highscore").textContent = fmtNum(highScore);

@@ -64,10 +64,15 @@
   <!-- ===== شاشة البداية ===== -->
   <div id="start-screen" class="overlay">
     <div class="panel menu-panel">
-      <!-- أزرار الزاوية: صفّ واحد (لغة، ملف، إعدادات، ؟)؛ وتتحوّل لقائمة جانبية منسدلة في الوضع الأفقي -->
+      <!-- زاوية: زرّ الإغلاق وحده -->
+      <div class="corner-cluster start-cluster">
+        <button id="quit-btn" class="corner-btn danger" onclick="quitGame()" data-i18n-title="closeGame">✕</button>
+      </div>
+      <!-- الزاوية المقابلة: شبكة 2×2 (الملف | اللغة) و(الإعدادات | ؟)؛ وتتحوّل لقائمة جانبية صغيرة في الوضع الأفقي -->
       <div class="corner-cluster end-cluster">
         <button id="menu-fab" class="menu-fab" onclick="toggleSideMenu()" aria-label="menu">☰</button>
         <div class="end-items">
+          <button id="profile-btn" class="corner-btn" onclick="closeSideMenu();openProfile()" data-i18n-title="profile">👤</button>
           <div id="lang-dd" class="lang-dd">
             <button id="lang-btn" type="button" onclick="toggleLangMenu()">🌐 <span id="lang-current">EN</span></button>
             <div id="lang-menu" class="lang-menu hidden">
@@ -75,10 +80,9 @@
               <ul id="lang-list"></ul>
             </div>
           </div>
-          <button id="profile-btn" class="corner-btn" onclick="closeSideMenu();openProfile()" data-i18n-title="profile">👤</button>
           <button id="settings-btn" class="corner-btn" onclick="closeSideMenu();openSettings()" data-i18n-title="settings">⚙️</button>
           <button id="help-btn" class="corner-btn" onclick="closeSideMenu();openHelp()" data-i18n-title="help">❓</button>
-          <!-- عناصر تظهر فقط في القائمة الجانبية (الوضع الأفقي): تنزيل بالاسم (بلا أيقونة) + إغلاق -->
+          <!-- عناصر القائمة الجانبية (الوضع الأفقي): تنزيل بالاسم + إغلاق -->
           <button class="side-dl ls-only" onclick="closeSideMenu();downloadAndroid()"><span data-i18n="dlForAndroid">تنزيل للأندرويد</span></button>
           <button class="side-dl ls-only" onclick="closeSideMenu();downloadIphone()"><span data-i18n="dlForIphone">تنزيل للآيفون</span></button>
           <button class="side-close ls-only" onclick="quitGame()">✕ <span data-i18n="closeGame">إغلاق</span></button>
@@ -99,7 +103,11 @@
       </div>
 
       <input id="name-input" type="text" maxlength="14" autocomplete="off" enterkeyhint="done" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"/>
-      <button id="dl-game-btn" class="ghost-btn dl-game-btn" onclick="openDownload()">⬇ <span data-i18n="dlGame">تحميل اللعبة</span></button>
+      <!-- تنزيل مباشر: أندرويد + آيفون جنباً إلى جنب (بدل زر يفتح ديالوق) -->
+      <div id="dl-row">
+        <button class="ghost-btn dl-os" onclick="downloadAndroid()">🤖 <span data-i18n="dlForAndroid">تنزيل للأندرويد</span></button>
+        <button class="ghost-btn dl-os" onclick="downloadIphone()">🍎 <span data-i18n="dlForIphone">تنزيل للآيفون</span></button>
+      </div>
       </div><!-- /menu-col-a -->
 
       <div class="menu-col menu-col-b">

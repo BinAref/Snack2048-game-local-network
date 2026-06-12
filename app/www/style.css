@@ -305,7 +305,7 @@ body::after {
 .corner-cluster { position: absolute; top: 14px; z-index: 6; display: flex; }
 .start-cluster { inset-inline-start: 14px; flex-direction: row; gap: 8px; align-items: center; }
 .end-cluster { inset-inline-end: 14px; }
-.end-items { display: flex; flex-direction: row; gap: 8px; align-items: center; } /* أزرار الزاوية جنباً إلى جنب */
+.end-items { display: grid; grid-template-columns: auto auto; gap: 6px; align-items: center; justify-items: end; } /* شبكة 2×2: (الملف | اللغة) و(الإعدادات | ؟) */
 .end-row { display: flex; gap: 8px; align-items: center; }
 .menu-fab { display: none; width: 40px; height: 36px; border-radius: var(--radius-sm); border: 1px solid var(--border-neon); background: rgba(0,212,255,0.12); color: var(--text-primary); font-size: 18px; cursor: pointer; align-items: center; justify-content: center; }
 .corner-btn { width: 38px; height: 34px; border-radius: var(--radius-sm); flex: 0 0 auto;
@@ -363,7 +363,7 @@ body::after {
 .menu-col { display: contents; }
 /* دخول متدرّج لعناصر المنيو (محدّد بالنسب لأن العناصر داخل أعمدة) */
 @keyframes rise-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-.menu-panel .logo-block, .menu-panel #name-input, .menu-panel #mode-switch, .menu-panel .sub-panel, .menu-panel .dl-game-btn { animation: rise-in .45s ease backwards; }
+.menu-panel .logo-block, .menu-panel #name-input, .menu-panel #mode-switch, .menu-panel .sub-panel, .menu-panel #dl-row { animation: rise-in .45s ease backwards; }
 .menu-panel .logo-block { animation-delay: .04s; }
 .menu-panel #name-input { animation-delay: .12s; }
 .menu-panel #mode-switch { animation-delay: .20s; }
@@ -402,7 +402,10 @@ body::after {
 
 /* درب‑داون الأشكال (جانبي) */
 #shape-dd { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 14px; }
-.dl-game-btn { width: 100%; margin: 2px 0 12px; font-size: 14px; }
+/* تنزيل مباشر: زرّان (أندرويد/آيفون) جنباً إلى جنب تحت خانة الاسم */
+#dl-row { display: flex; gap: 8px; width: 100%; margin: 2px 0 12px; }
+#dl-row.hidden { display: none; }
+.dl-os { flex: 1; margin: 0; padding: 9px 6px; font-size: 12px; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 5px; }
 /* ويدجت تحميل اللعبة */
 .dl-modal { max-width: 380px; }
 .dl-choice { display: block; width: 100%; text-align: start; margin-top: 10px; padding: 12px 14px; border-radius: var(--radius-sm);
@@ -746,23 +749,26 @@ body.touch #stored { left: auto; right: calc(14px + env(safe-area-inset-right));
   .menu-panel.mode-multi .divider { margin: 2px 0; }
   .menu-panel.mode-multi .lan-title { font-size: 11px; margin-bottom: 4px; }
 
-  /* كل أزرار الزوايا في قائمة جانبية منسدلة شبكية (☰) — زرّان جنب بعض، والتنزيل/الإغلاق بعرض كامل */
+  /* أزرار الزوايا في قائمة منسدلة صغيرة مدمجة (☰) تُفتح مثل قائمة الأشكال — أحجام صغيرة */
   .start-cluster { display: none; }
-  .menu-panel .dl-game-btn { display: none; } /* التحميل صار داخل القائمة الجانبية */
+  .menu-panel #dl-row { display: none; } /* التحميل صار داخل القائمة الجانبية */
   .end-cluster { position: fixed; top: calc(8px + env(safe-area-inset-top)); inset-inline-end: calc(8px + env(safe-area-inset-right)); z-index: 22; }
-  .menu-fab { display: flex; }
+  .menu-fab { display: flex; width: 36px; height: 32px; font-size: 16px; }
   .end-items {
     display: none; position: absolute; top: calc(100% + 6px); inset-inline-end: 0;
-    flex-direction: column; gap: 6px; padding: 8px; width: min(82vw, 300px);
+    grid-template-columns: none; flex-direction: row; flex-wrap: wrap; justify-content: flex-end; gap: 5px;
+    padding: 7px; width: max-content; max-width: min(88vw, 250px);
     background: var(--bg-card); border: 1px solid var(--border-neon); border-radius: var(--radius-sm);
     box-shadow: var(--glow-blue), 0 12px 30px rgba(0,0,0,0.55);
   }
   .end-cluster.open .end-items { display: flex; }
   .ls-only { display: flex; }
-  .end-items .corner-btn, .end-items .side-dl, .end-items .side-close { width: 100%; height: 40px; }
-  .end-items .lang-dd, .end-items #lang-btn { width: 100%; }
-  .end-items #lang-btn { height: 38px; display: flex; align-items: center; justify-content: center; }
-  /* قائمة اللغات تُعرض موسّطة كي لا تُقصّ داخل القائمة الجانبية */
+  /* أيقونات صغيرة في صفّ، والتنزيل/الإغلاق بعرض القائمة وبخط صغير */
+  .end-items .corner-btn { width: 32px; height: 32px; font-size: 14px; }
+  .end-items .lang-dd { width: auto; }
+  .end-items #lang-btn { height: 32px; padding: 0 8px; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+  .end-items .side-dl, .end-items .side-close { width: 100%; height: auto; padding: 6px 8px; font-size: 11px; }
+  /* قائمة اللغات تُعرض موسّطة كي لا تُقصّ داخل القائمة الصغيرة */
   .end-items #lang-menu { position: fixed; top: 50%; inset-inline-start: 50%; inset-inline-end: auto; transform: translate(-50%, -50%); width: min(86vw, 320px); }
 }
 
