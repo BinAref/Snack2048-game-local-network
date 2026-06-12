@@ -1,5 +1,5 @@
 /* Service Worker — يجعل اللعبة قابلة للتثبيت وتعمل أوفلاين بعد أول فتح */
-const CACHE = "snake2048-v38";
+const CACHE = "snake2048-v39";
 const ASSETS = ["./", "./index.html", "./style.css", "./game.js", "./lang.js", "./particles.js", "./sound.js", "./manifest.json", "./icon.svg", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {

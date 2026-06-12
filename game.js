@@ -581,7 +581,7 @@
   // هل يوجد ثعبان (لاعب/بوت/بعيد) قرب هذه النقطة؟ (لمنع وضع حاجز فوقهم)
   function entityNear(x, y, r) {
     if (state === "playing" && Math.hypot(snake.x - x, snake.y - y) < r) return true;
-    for (const b of bots.values()) if (Math.hypot(b.x - x, b.y - y) < r) return true;
+    for (const b of bots.values()) if (b.alive && Math.hypot(b.x - x, b.y - y) < r) return true;
     for (const rm of remotes.values()) if (rm.x != null && Math.hypot(rm.x - x, rm.y - y) < r) return true;
     return false;
   }
@@ -1004,7 +1004,7 @@
   // =====================================================================
   // حالة اللعبة + الميداليات
   // =====================================================================
-  let state = "menu", lastT = 0, now = 0, playTime = 0, spectating = false, spectateTarget = null;
+  let state = "menu", lastT = 0, now = 0, playTime = 0, spectating = false, spectateTarget = null, specHudT = 0;
   let fpsAvg = 60, perfScale = 1, perfHold = 0; // أداء تكيّفي
   let highScore = 0;
   try { highScore = parseInt(localStorage.getItem("snake2048_high") || "0") || 0; } catch (e) {}
@@ -1125,7 +1125,7 @@
   function computeLeader() {
     let best = { id: myId, name: playerName, score: score() };
     if (online) for (const r of remotes.values()) if ((r.score || 0) > best.score) best = { id: r.id, name: r.name, score: r.score || 0 };
-    for (const b of bots.values()) { const s = botScore(b); if (s > best.score) best = { id: b.id, name: b.name, score: s }; }
+    for (const b of bots.values()) { if (!b.alive) continue; const s = botScore(b); if (s > best.score) best = { id: b.id, name: b.name, score: s }; }
     return best;
   }
   // الميداليات: من يبقى 5 دقائق متواصلة في الصدارة يحصل على ميدالية وتتغيّر الخريطة
@@ -1208,13 +1208,13 @@
   function detonateBomb() {
     const r = areaRadius(), hv = headValue();
     sfx("explosion"); vibrate(120); explodeFx(snake.x, snake.y, r, "#ff6b3d");
-    for (const b of [...bots.values()]) if (b.values[0] <= hv && b.shieldTimer <= 0 && Math.hypot(b.x - snake.x, b.y - snake.y) < r) killBot(b); // نفس المستوى أو أضعف (والدرع يحمي)
+    for (const b of [...bots.values()]) if (b.alive && b.values[0] <= hv && b.shieldTimer <= 0 && Math.hypot(b.x - snake.x, b.y - snake.y) < r) killBot(b); // نفس المستوى أو أضعف (والدرع يحمي)
     for (const rm of remotes.values()) if (rm.x != null && (rm.head || 2) <= hv && Math.hypot(rm.x - snake.x, rm.y - snake.y) < r) netSend({ t: "cut", target: rm.id, index: 0 });
   }
   function detonateFreeze() {
     const r = areaRadius();
     sfx("freeze"); vibrate(40); explodeFx(snake.x, snake.y, r, "#7fe7ff");
-    for (const b of bots.values()) if (b.shieldTimer <= 0 && Math.hypot(b.x - snake.x, b.y - snake.y) < r) b.frozen = CONFIG.FREEZE_TIME;
+    for (const b of bots.values()) if (b.alive && b.shieldTimer <= 0 && Math.hypot(b.x - snake.x, b.y - snake.y) < r) b.frozen = CONFIG.FREEZE_TIME;
     for (const rm of remotes.values()) if (rm.x != null && Math.hypot(rm.x - snake.x, rm.y - snake.y) < r) netSend({ t: "freezeP", target: rm.id });
   }
   function useBomb() { if (snake.bombs <= 0 || state !== "playing") return; snake.bombs--; updateStored(); detonateBomb(); }
@@ -1411,7 +1411,7 @@
     const hv = headValue(), hSize = sizeForValue(hv);
     const opps = [];
     for (const r of remotes.values()) if (r.body && r.body.length) opps.push(r);
-    for (const bot of bots.values()) opps.push({ id: bot.id, x: bot.x, y: bot.y, head: bot.values[0], boosting: bot.boost, body: bodyOf(bot).map((s) => ({ x: s.x, y: s.y, v: s.value })), _bot: bot });
+    for (const bot of bots.values()) { if (!bot.alive) continue; opps.push({ id: bot.id, x: bot.x, y: bot.y, head: bot.values[0], boosting: bot.boost, body: bodyOf(bot).map((s) => ({ x: s.x, y: s.y, v: s.value })), _bot: bot }); }
     for (const r of opps) {
       const cd = r._bot ? "_pbiteCD" : "biteCD", obj = r._bot || r;
       obj[cd] = Math.max(0, (obj[cd] || 0) - dt);
@@ -1494,18 +1494,44 @@
     top = Math.max(2, Math.pow(2, Math.round(log2(top))));
     const values = [top]; let v = top;
     while (v > 2 && values.length < 5) { v /= 2; values.push(v); }
-    const p = freePos(2), id = "bot" + (botSeq++);
-    return { id, name: pickBotName(), color: colorForId(id), x: p.x, y: p.y, angle: rand(0, Math.PI * 2), values, path: [{ x: p.x, y: p.y }], diff, react: lerp(0.6, 0.1, diff), aiT: rand(0, 0.3), boost: false, stamina: 1, speedTimer: 0, radarTimer: 0, magnetTimer: 0, shieldTimer: 0, frozen: 0, dangerTimer: 0, headDangerTimer: 0, desiredAngle: rand(0, Math.PI * 2), _pbiteCD: 0, _obiteCD: 0, alive: true, emojiEm: null, emojiLife: 0 };
+    const challenger = !!opts.challenger;
+    const p = challenger ? farFromPlayers() : freePos(2), id = "bot" + (botSeq++);
+    return { id, name: pickBotName(), color: colorForId(id), x: p.x, y: p.y, angle: rand(0, Math.PI * 2), values, path: [{ x: p.x, y: p.y }], diff, react: lerp(0.6, 0.1, diff), aiT: rand(0, 0.3), boost: false, stamina: 1, speedTimer: 0, radarTimer: 0, magnetTimer: 0, shieldTimer: 0, frozen: 0, dangerTimer: 0, headDangerTimer: 0, desiredAngle: rand(0, Math.PI * 2), _pbiteCD: 0, _obiteCD: 0, alive: true, respawnT: 0, spawnStrength: strength, challenger, emojiEm: null, emojiLife: 0 };
   }
   function addBot(opts) { if (bots.size >= 30) return; const b = makeBot(opts); bots.set(b.id, b); }
+  // أماكن اللاعبين الحقيقيين (المحلي + البعيدون)
+  function humanPositions() {
+    const hs = [];
+    if (state === "playing") hs.push({ x: snake.x, y: snake.y });
+    for (const r of remotes.values()) if (r.x != null) hs.push({ x: r.x, y: r.y });
+    return hs;
+  }
+  // أبعد/أقلّ ازدحاماً عن اللاعبين الحقيقيين (للبوت القوي/المتحدّي)
+  function farFromPlayers() {
+    const hs = humanPositions();
+    if (!hs.length) return freePos(2);
+    let best = null, bestD = -1;
+    for (let k = 0; k < 40; k++) { const p = freePos(2); let md = 1e9; for (const h of hs) md = Math.min(md, Math.hypot(p.x - h.x, p.y - h.y)); if (md > bestD) { bestD = md; best = p; } }
+    return best || freePos(2);
+  }
+  // إعادة إحياء البوت نفسه (يحتفظ بالاسم/اللون/الهوية) كأنّه لاعب يبدأ من جديد
+  function respawnBot(bot) {
+    bot.values = makeBot({ strength: bot.spawnStrength }).values; // قيم بداية جديدة فقط (مكان رخيص يُستبدَل أدناه)
+    const p = bot.challenger ? farFromPlayers() : freePos(2);
+    bot.x = p.x; bot.y = p.y; bot.path = [{ x: p.x, y: p.y }];
+    bot.angle = rand(0, Math.PI * 2); bot.desiredAngle = bot.angle;
+    bot.alive = true; bot.respawnT = 0; bot.boost = false; bot.stamina = 1;
+    bot.speedTimer = 0; bot.radarTimer = 0; bot.magnetTimer = 0; bot.shieldTimer = 0; bot.frozen = 0;
+    bot.dangerTimer = 0; bot.headDangerTimer = 0; bot._pbiteCD = 0; bot._obiteCD = 0;
+    spawnBurst(p.x, p.y, bot.color, 10);
+  }
   function killBot(bot, eatenHead) {
-    if (!bot.alive) return; bot.alive = false;
+    if (!bot.alive) return; bot.alive = false; bot.respawnT = rand(2.5, 4); // لا يُحذف: يعود البوت نفسه بعد مهلة
     const segs = bodyOf(bot);
     for (let i = 0; i < segs.length; i++) {
       if (eatenHead && i === 0) continue; // الرأس أُكل بالفعل من المهاجم — لا يُسقط كطعام
       const s = segs[i]; spawnBurst(s.x, s.y, colorForValue(s.value), 8); dropLoose(s.x + rand(-1, 1), s.y + rand(-1, 1), s.value);
     }
-    bots.delete(bot.id);
   }
   function botEat(bot, val) {
     bot.values.push(val); bot.values.sort((a, b) => b - a);
@@ -1575,6 +1601,7 @@
     bot.desiredAngle += rand(-1, 1) * (1 - smart) * 0.45; // عدم دقّة للضعفاء
   }
   function stepBot(bot, dt) {
+    if (!bot.alive) { bot.respawnT -= dt; if (bot.respawnT <= 0) respawnBot(bot); return; } // ميت: عدّ تنازلي ثم يعود هو نفسه
     if (bot.shieldTimer > 0) bot.shieldTimer = Math.max(0, bot.shieldTimer - dt);
     if (bot.frozen > 0) { bot.frozen = Math.max(0, bot.frozen - dt); bot.boost = false; return; } // مجمّد: لا حركة
     bot.aiT -= dt; if (bot.aiT <= 0) { bot.aiT = bot.react; decideBot(bot); }
@@ -1636,7 +1663,7 @@
         const ph = headValue();
         const strength = Math.min(0.99, 0.86 + challengeWave * 0.03);
         const topMul = 1.6 + challengeWave * 0.5;
-        addBot({ top: Math.max(ph * 2, Math.round(ph * topMul)), diff: strength });
+        addBot({ top: Math.max(ph * 2, Math.round(ph * topMul)), diff: strength, strength, challenger: true }); // البوت المتحدّي القوي: يظهر بعيداً عن اللاعبين الحقيقيين
       }
     } else { playerReign = 0; } // فقدان الصدارة يصفّر العدّاد (يبدأ 6 دقائق جديدة عند العودة)
   }
@@ -1648,6 +1675,10 @@
     else target = Math.min(20, 1 + Math.floor(playTime / 120)); // الفردي: يبدأ 1 ويزيد 1 كل دقيقتين (~15 عند 30 دقيقة)
     botSpawnCD -= dt;
     if (bots.size < target && botSpawnCD <= 0) { addBot({ strength: rand(0.05, 0.55) }); botSpawnCD = 0.3; }
+    else if (bots.size > target) { // انضمّ لاعبون حقيقيون → قلّل العدد (احذف الميت أولاً ثم الأضعف)
+      let extra = bots.size - target;
+      for (const b of [...bots.values()].sort((a, c) => (a.alive === c.alive ? botScore(a) - botScore(c) : (a.alive ? 1 : -1)))) { if (extra <= 0) break; bots.delete(b.id); extra--; }
+    }
     updateChallengers(dt);
     for (const bot of [...bots.values()]) stepBot(bot, dt);
     for (const bot of [...bots.values()]) if (bot.alive) botOffense(bot, dt);
@@ -1766,11 +1797,11 @@
     const onScreen = (wx, wy) => { const p = project(wx, wy); return p.x > -VIS_M && p.x < W + VIS_M && p.y > -VIS_M && p.y < H + VIS_M; };
     for (const p of powerups) if (onScreen(p.x, p.y)) drawCard(p.x, p.y, p.size, p.type);
     if (state === "playing" && (snake.boosting || snake.speedTimer > 0)) drawBoostJet(); // تحت المكعبات
-    for (const bt of bots.values()) if ((bt.boost || bt.speedTimer > 0) && onScreen(bt.x, bt.y)) { const t = tailOf(bt); drawJetAt(t.x, t.y, bt.angle, sizeForValue(bt.values[0]), bt.speedTimer > 0); }
+    for (const bt of bots.values()) if (bt.alive && (bt.boost || bt.speedTimer > 0) && onScreen(bt.x, bt.y)) { const t = tailOf(bt); drawJetAt(t.x, t.y, bt.angle, sizeForValue(bt.values[0]), bt.speedTimer > 0); }
     for (const r of remotes.values()) if (r.boosting && r.body && r.body.length && onScreen(r.x, r.y)) { const t = r.body[r.body.length - 1]; drawJetAt(t.x, t.y, r.angle || 0, sizeForValue(r.head || 2), false); }
     // هالة المغناطيس
     if (state === "playing" && snake.magnetTimer > 0) drawMagnetRing(snake.x, snake.y);
-    for (const bt of bots.values()) if (bt.magnetTimer > 0 && onScreen(bt.x, bt.y)) drawMagnetRing(bt.x, bt.y);
+    for (const bt of bots.values()) if (bt.alive && bt.magnetTimer > 0 && onScreen(bt.x, bt.y)) drawMagnetRing(bt.x, bt.y);
     drawParticles(true); // شعاع السرعة يُرسم تحت المكعبات
     const drawables = [];
     const pushCube = (kind, x, y, size, value, shield) => {
@@ -1787,7 +1818,7 @@
     }
     if (state === "playing") { const psh = snake.shieldTimer > 0; for (const s of bodyPositions()) pushCube("body", s.x, s.y, s.size, s.value, psh); } // يختفي عند التفتّت
     for (const r of remotes.values()) { if (!r.body) continue; const rsh = !!r.shield; for (const b of r.body) pushCube("body", b.x, b.y, sizeForValue(b.v), b.v, rsh); }
-    for (const bt of bots.values()) { const bsh = bt.shieldTimer > 0; for (const s of bodyOf(bt)) pushCube("body", s.x, s.y, s.size, s.value, bsh); }
+    for (const bt of bots.values()) { if (!bt.alive) continue; const bsh = bt.shieldTimer > 0; for (const s of bodyOf(bt)) pushCube("body", s.x, s.y, s.size, s.value, bsh); }
     for (const d of sortIso(drawables)) {
       if (d.kind === "wall") drawObstacle(d.o);
       else if (d.kind === "food") drawCube(d.x, d.y, d.size * (1 + 0.05 * Math.sin(now * 3 + d.x)), d.value); // نبض خفيف للطعام
@@ -1798,7 +1829,7 @@
     drawRings();
     // أسماء الثعابين البعيدة والبوتات (المرئية فقط)
     for (const r of remotes.values()) if (onScreen(r.x, r.y)) drawRemoteLabel(r);
-    for (const bt of bots.values()) if (onScreen(bt.x, bt.y)) drawRemoteLabel({ x: bt.x, y: bt.y, head: bt.values[0], name: bt.name, color: bt.color, emojiLife: bt.emojiLife, emojiEm: bt.emojiEm });
+    for (const bt of bots.values()) if (bt.alive && onScreen(bt.x, bt.y)) drawRemoteLabel({ x: bt.x, y: bt.y, head: bt.values[0], name: bt.name, color: bt.color, emojiLife: bt.emojiLife, emojiEm: bt.emojiEm });
     if (state === "playing") { drawArrow(); drawNameLabel(); } // لا سهم/اسم للاعب الميت أثناء المشاهدة
     drawEmojis();
     if (snake.radarTimer > 0) { drawPowerupRadar(); drawEffectTimer("📡", snake.radarTimer, "#ffd23f", 0); } // الرادار يكشف الكنوز/القوى
@@ -1842,7 +1873,7 @@
     ctx.clip();
     ctx.fillStyle = "#ff3b3b"; // الأعداء (الأقوى أكبر)
     for (const r of remotes.values()) if (r.x != null) { ctx.beginPath(); ctx.arc(mmx(r.x, r.y), mmy(r.x, r.y), dot(r.head || 2), 0, Math.PI * 2); ctx.fill(); }
-    for (const b of bots.values()) { ctx.beginPath(); ctx.arc(mmx(b.x, b.y), mmy(b.x, b.y), dot(b.values[0]), 0, Math.PI * 2); ctx.fill(); }
+    for (const b of bots.values()) { if (!b.alive) continue; ctx.beginPath(); ctx.arc(mmx(b.x, b.y), mmy(b.x, b.y), dot(b.values[0]), 0, Math.PI * 2); ctx.fill(); }
     if (snake.radarTimer > 0) { ctx.fillStyle = "#ffd23f"; for (const p of powerups) { ctx.beginPath(); ctx.arc(mmx(p.x, p.y), mmy(p.x, p.y), 2 * sc, 0, Math.PI * 2); ctx.fill(); } } // الرادار: الكنوز
     ctx.fillStyle = "#19d3ff"; ctx.beginPath(); ctx.arc(mmx(snake.x, snake.y), mmy(snake.x, snake.y), 2.4 * sc, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
@@ -1885,7 +1916,7 @@
     const items = [];
     const add = (x, y, color) => { const rp = project(x, y); items.push({ ang: Math.atan2(rp.y - cy, rp.x - cx), d: Math.hypot(x - snake.x, y - snake.y), color }); };
     for (const r of remotes.values()) if (r.x != null) add(r.x, r.y, r.color || "#2ee6a6");
-    for (const bt of bots.values()) add(bt.x, bt.y, bt.color);
+    for (const bt of bots.values()) if (bt.alive) add(bt.x, bt.y, bt.color);
     const ring = Math.min(W, H) * 0.22; // أقرب للاعب
     const angDiff = (a, b) => Math.abs(normAngle(a - b));
     const arrow = (it, big) => {
@@ -1980,7 +2011,7 @@
     document.getElementById("boost-bar-label").textContent = snake.exhausted ? "…" : "⚡";
     const entries = spectating ? [] : [{ id: myId, name: playerName, head: headValue(), me: true }]; // أثناء المشاهدة لا نُدرج اللاعب الميت
     if (online) for (const r of remotes.values()) { if (r.x == null) continue; entries.push({ id: r.id, name: r.name || "?", head: r.head || 2, me: false }); }
-    for (const b of bots.values()) entries.push({ id: b.id, name: b.name, head: b.values[0], me: false });
+    for (const b of bots.values()) if (b.alive) entries.push({ id: b.id, name: b.name, head: b.values[0], me: false });
     entries.sort((a, b) => b.head - a.head);
     const n = entries.length, myIdx = entries.findIndex((e) => e.me);
     const curTarget = spectating ? (spectateTarget || (spectateEntity() ? spectateEntity().id : null)) : null;
@@ -2027,14 +2058,20 @@
   // pointerdown (لا click): يعمل فوراً حتى أثناء تحريك العصا بإصبع آخر (لمس متعدّد)
   chatButtons.forEach((b) => b.addEventListener("pointerdown", (e) => { e.preventDefault(); sendEmoji(b.dataset.emoji); }));
   { const q = document.getElementById("emoji-quick"); if (q) q.addEventListener("pointerdown", (e) => { e.preventDefault(); sendEmoji(mostUsedEmoji()); }); }
+  // سهم طيّ/فتح شريط الإيموجي: pointerdown ليعمل أثناء تحريك اللاعب بإصبع آخر
+  { const ea = document.getElementById("emoji-arrow"); if (ea) ea.addEventListener("pointerdown", (e) => { e.preventDefault(); e.stopPropagation(); window.toggleEmojiBar(); }); }
   updateQuickEmoji();
   function emojiByIndex(i) { const b = chatButtons[i]; if (b) sendEmoji(b.dataset.emoji); }
   // الإحصائيات/المتصدّرون: pointerdown ليعملا أثناء تحريك اللاعب
   { const sb = document.getElementById("score-box"); if (sb) sb.addEventListener("pointerdown", (e) => { e.preventDefault(); toggleStats(); }); }
   // أثناء المشاهدة لا نمنع الافتراضي (نترك التمرير اللمسي يعمل)؛ خارجها نطوي/نفتح القائمة
   { const lb = document.getElementById("leaderboard"); if (lb) lb.addEventListener("pointerdown", (e) => { if (spectating) return; e.preventDefault(); toggleLB(); }); }
-  // نقر (click لا pointerdown) اسماً في المتصدّرين يبدّل اللاعب المُشاهَد — لا يعطّل سحب التمرير
-  { const ll = document.getElementById("lb-list"); if (ll) ll.addEventListener("click", (e) => { if (!spectating) return; const li = e.target.closest("li[data-pid]"); if (li) window.spectateSelect(li.getAttribute("data-pid")); }); }
+  // المشاهدة: التقط الاسم عند الضغط واختره عند الإفلات إن لم يكن سحباً — يعمل على الكمبيوتر واللمس رغم إعادة بناء القائمة كل لحظة
+  { const ll = document.getElementById("lb-list"); if (ll) {
+      let downId = null, downY = 0;
+      ll.addEventListener("pointerdown", (e) => { if (!spectating) { downId = null; return; } const li = e.target.closest("li[data-pid]"); downId = li ? li.getAttribute("data-pid") : null; downY = e.clientY; });
+      ll.addEventListener("pointerup", (e) => { if (!spectating || downId == null) return; if (Math.abs(e.clientY - downY) < 12) window.spectateSelect(downId); downId = null; });
+    } }
   // طيّ/إظهار شريط الإيموجي (إيموجي واحد + سهم عند الطيّ)
   window.toggleEmojiBar = function () {
     const c = document.getElementById("chat-bar"); if (!c) return;
@@ -2439,7 +2476,7 @@
     const list = [];
     if (state === "playing" || state === "paused") list.push(selfEntry()); // الموقوف مؤقتاً يبقى ظاهراً ويمكن أكله؛ الميت فقط يُحذف
     for (const r of remotes.values()) list.push({ id: r.id, name: r.name, x: r.x, y: r.y, angle: r.angle, head: r.head, boosting: r.boosting, score: r.score, body: r.body, shield: r.shield });
-    for (const b of bots.values()) list.push({ id: b.id, name: b.name, x: b.x, y: b.y, angle: b.angle, head: b.values[0], boosting: b.boost, score: botScore(b), body: bodyOf(b).map((s) => ({ x: +s.x.toFixed(2), y: +s.y.toFixed(2), v: s.value })), shield: b.shieldTimer > 0 });
+    for (const b of bots.values()) if (b.alive) list.push({ id: b.id, name: b.name, x: b.x, y: b.y, angle: b.angle, head: b.values[0], boosting: b.boost, score: botScore(b), body: bodyOf(b).map((s) => ({ x: +s.x.toFixed(2), y: +s.y.toFixed(2), v: s.value })), shield: b.shieldTimer > 0 });
     return { t: "snakes", list };
   }
 
@@ -2514,7 +2551,7 @@
         updateParticles(dt); updateEmojis(dt); updateRings(dt); updateDebris(dt); updateKillFeed(dt);
         if (state === "dying") { deathTimer -= dt; if (deathTimer <= 0) finalizeOver(); }
         if (state === "won") fireworksTick(dt); // ألعاب نارية
-        if (spectating) { if (!online) hostKeepAlive(dt); spectateCam(); updateHUD(); } // مشاهدة: استمرّ في المحاكاة (فردي)، اتبع الهدف، وحدّث المتصدّرين
+        if (spectating) { if (!online) hostKeepAlive(dt); spectateCam(); specHudT += dt; if (specHudT >= 0.2) { specHudT = 0; updateHUD(); } } // مشاهدة: حاكِ، اتبع الهدف، وحدّث المتصدّرين ~5 مرّات/ثانية (لتثبيت النقر)
         // المضيف ما زال داخل الغرفة (موقوف مؤقتاً/ميت): يُبقي العالم حياً ويوزّعه فلا يتجمّد العملاء
         if (isHost && online) {
           hostKeepAlive(dt);
@@ -2589,8 +2626,6 @@
   // شرائح حجم الصوت
   window.setMusicVol = function () { if (window.Sound) Sound.setMusicVol(document.getElementById("set-music-vol").value / 100); };
   window.setSfxVol = function () { if (window.Sound) Sound.setSfxVol(document.getElementById("set-sfx-vol").value / 100); };
-  // مفتاح صوت رئيسي في الإيقاف المؤقت
-  window.toggleSound = function () { if (!window.Sound) return; const on = !Sound.toggleMute(); setChecked("pause-snd-toggle", on); };
   window.toggleHaptics = function () {
     const cb = document.getElementById("set-haptics"); hapticsOn = cb ? cb.checked : !hapticsOn;
     try { localStorage.setItem("snake2048_haptics", hapticsOn ? "1" : "0"); } catch (e) {}
@@ -2602,7 +2637,6 @@
     setVal("set-music-vol", Math.round((window.Sound ? Sound.getMusicVol() : 0.9) * 100));
     setVal("set-sfx-vol", Math.round((window.Sound ? Sound.getSfxVol() : 0.9) * 100));
     setChecked("set-haptics", hapticsOn);
-    setChecked("pause-snd-toggle", !(window.Sound && Sound.isMuted()));
   } catch (e) {}
 
   // ===== الإنجازات (نظام متدرّج) + ملفّ اللاعب =====
@@ -2676,9 +2710,9 @@
   }
   // كائن الهدف المُشاهَد حالياً (مختار أو المتصدّر)
   function spectateEntity() {
-    if (spectateTarget) { if (bots.has(spectateTarget)) return bots.get(spectateTarget); if (remotes.has(spectateTarget)) { const r = remotes.get(spectateTarget); if (r.x != null) return r; } spectateTarget = null; } // الهدف غادر → عُد للمتصدّر
+    if (spectateTarget) { if (bots.has(spectateTarget) && bots.get(spectateTarget).alive) return bots.get(spectateTarget); if (remotes.has(spectateTarget)) { const r = remotes.get(spectateTarget); if (r.x != null) return r; } /* الهدف ميت/غادر: ابقَ عليه حتى يعود إن كان بوتاً */ if (!bots.has(spectateTarget)) spectateTarget = null; }
     let best = null, bs = -1;
-    for (const b of bots.values()) { const s = botScore(b); if (s > bs) { bs = s; best = b; } }
+    for (const b of bots.values()) { if (!b.alive) continue; const s = botScore(b); if (s > bs) { bs = s; best = b; } }
     for (const r of remotes.values()) if (r.x != null && (r.head || 0) > bs) { bs = r.head || 0; best = r; }
     return best;
   }
@@ -2690,6 +2724,8 @@
   // موسيقى المنيو تبدأ عند أول تفاعل (سياسة المتصفّحات للصوت)
   addEventListener("pointerdown", function startMenuOnce() { try { if (window.Sound && state === "menu") Sound.startMenu(); } catch (e) {} removeEventListener("pointerdown", startMenuOnce); }, { once: true });
   if (isNativeApp) { try { document.getElementById("local-lan").classList.remove("hidden"); } catch (e) {} } // لعب محلي في التطبيق فقط
+  // إن كانت اللعبة مثبّتة بالفعل (تطبيق أصلي أو PWA مستقلّة) فلا داعي لزر التحميل
+  try { const installed = isNativeApp || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || navigator.standalone; if (installed) { const d = document.getElementById("dl-game-btn"); if (d) d.classList.add("hidden"); } } catch (e) {}
   try { document.getElementById("ai-toggle").checked = aiEnabled; } catch (e) {}
   gameLevel = 1; resetSnake(); initItems(); updateCamera(0, 0);
   document.getElementById("highscore").textContent = fmtNum(highScore);

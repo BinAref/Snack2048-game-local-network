@@ -256,6 +256,7 @@ body::after {
   background: rgba(3, 5, 14, 0.78); backdrop-filter: blur(6px);
 }
 .overlay.hidden { display: none; }
+#settings-screen { z-index: 30; } /* يُفتح فوق شاشة الإيقاف المؤقت عند النقر على زر الصوت فيها */
 
 .panel {
   position: relative;
@@ -302,7 +303,7 @@ body::after {
 /* مجموعات الزوايا */
 .corner-cluster { position: absolute; top: 14px; z-index: 6; display: flex; }
 .start-cluster { inset-inline-start: 14px; flex-direction: row; gap: 8px; align-items: center; }
-.end-cluster { inset-inline-end: 14px; flex-direction: column; gap: 8px; align-items: flex-end; }
+.end-cluster { inset-inline-end: 14px; display: grid; grid-template-columns: auto auto; gap: 8px; justify-items: end; align-items: start; }
 .end-row { display: flex; gap: 8px; align-items: center; }
 .corner-btn { width: 38px; height: 34px; border-radius: var(--radius-sm); flex: 0 0 auto;
   background: rgba(0,212,255,0.08); border: 1px solid var(--border-neon); color: var(--text-accent); font-size: 16px; cursor: pointer;
@@ -400,10 +401,11 @@ body::after {
 .shape-btn.active { border-color: var(--neon-blue); background: rgba(0,212,255,0.16); box-shadow: var(--glow-blue); }
 .shape-btn:hover:not(.active) { background: rgba(0,212,255,0.1); }
 #shape-options {
-  position: absolute; top: 112%; left: 50%; transform: translateX(-50%); z-index: 6;
-  display: flex; gap: 6px; align-items: center;
+  position: absolute; top: 116%; inset-inline-end: 0; inset-inline-start: auto; z-index: 8;
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center;
   background: var(--bg-surface); border: 1px solid var(--border-glow); border-radius: 12px;
-  padding: 6px; box-shadow: var(--glow-blue), 0 12px 30px rgba(0,0,0,0.5); overflow-x: auto; max-width: 86vw;
+  padding: 8px; box-shadow: var(--glow-blue), 0 12px 30px rgba(0,0,0,0.5);
+  width: max-content; max-width: min(82vw, 320px);
 }
 #shape-options.hidden { display: none; }
 
@@ -519,6 +521,7 @@ body::after {
 .pause-actions .ghost-btn { margin-bottom: 0; }
 .pause-toggles { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
 .pause-toggles .toggle-row { margin-bottom: 0; }
+.pause-sound-btn { margin: 0; padding: 8px 16px; }
 .over-menu { margin-top: 10px; margin-bottom: 0; }
 
 /* إخفاء قسم الانضمام عند القفل */
@@ -570,9 +573,9 @@ body::after {
   background: rgba(7,13,25,0.6); border: 1px solid var(--border-neon); border-radius: 999px; padding: 5px 14px; text-align: center;
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
 }
-#over-hud .over-btns { display: flex; gap: 12px; pointer-events: auto; }
-#over-hud .over-btns .main-btn { margin: 0; padding: 12px 26px; }
-#over-hud .over-btns .ghost-btn { margin: 0; padding: 12px 22px; }
+#over-hud .over-btns { display: flex; gap: 10px; pointer-events: auto; }
+#over-hud .over-btns .main-btn { margin: 0; padding: 9px 22px; font-size: 14px; min-width: 0; }
+#over-hud .over-btns .ghost-btn { margin: 0; padding: 9px 18px; font-size: 14px; }
 
 /* أثناء المشاهدة: أخفِ إحصائيات اللاعب الميت، واجعل المتصدّرين قابلين للتمرير والاختيار */
 body.spectating #score-box, body.spectating #medal-badge { display: none; }
@@ -692,9 +695,22 @@ body.touch #stored { left: auto; right: calc(14px + env(safe-area-inset-right));
   #over-hud .over-title { font-size: 12px; }
   #over-hud .over-stats { gap: 14px; }
   #over-hud .os-val { font-size: 14px; }
-  #over-hud .over-actions { bottom: calc(10px + env(safe-area-inset-bottom)); gap: 6px; }
-  #over-hud .spectate-hint { display: none; }
-  body.spectating #lb-list { max-height: 60vh; }
+  #over-hud .over-actions { bottom: calc(8px + env(safe-area-inset-bottom)); gap: 5px; }
+  #over-hud .spectate-hint { font-size: 10px; padding: 3px 10px; }
+  #over-hud .over-btns .main-btn, #over-hud .over-btns .ghost-btn { padding: 7px 16px; font-size: 13px; }
+  body.spectating #lb-list { max-height: 56vh; }
+
+  /* القائمة في الأفقي القصير: قابلة للتمرير ومضغوطة (الشعار صفّاً) */
+  .overlay { align-items: flex-start; }
+  .menu-panel { max-height: 96vh; overflow-y: auto; padding: 12px 18px; }
+  .menu-panel .logo-block { flex-direction: row; gap: 12px; margin-bottom: 8px; }
+  .menu-panel .logo-ring { transform: scale(0.66); margin: -8px; }
+  .menu-panel .game-title { font-size: 22px; }
+  .menu-panel #name-input { margin: 4px 0; }
+  .menu-panel .ai-shape-row { margin: 6px 0; }
+  .menu-panel #mode-switch { margin: 6px 0; }
+  .menu-panel .dl-game-btn { margin: 2px 0 6px; }
+  .end-cluster, .start-cluster { top: 8px; }
 }
 
 /* احترام تقليل الحركة */

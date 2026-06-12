@@ -64,24 +64,22 @@
   <!-- ===== شاشة البداية ===== -->
   <div id="start-screen" class="overlay">
     <div class="panel menu-panel">
-      <!-- زاوية: الملف الشخصي ثم الإغلاق -->
+      <!-- زاوية البداية: زر إغلاق اللعبة فقط (انتقل الملف الشخصي لزاوية اللغة) -->
       <div class="corner-cluster start-cluster">
-        <button id="profile-btn" class="corner-btn" onclick="openProfile()" data-i18n-title="profile">👤</button>
         <button id="quit-btn" class="corner-quit" onclick="quitGame()">✕ <span data-i18n="closeGame">إغلاق اللعبة</span></button>
       </div>
-      <!-- زاوية: الإعدادات ثم اللغة، والتعليمات أسفل الإعدادات -->
+      <!-- زاوية اللغة: شبكة 2×2 — (اللغة | الملف الشخصي) و (؟ | الإعدادات) -->
       <div class="corner-cluster end-cluster">
-        <div class="end-row">
-          <div id="lang-dd" class="lang-dd">
-            <button id="lang-btn" type="button" onclick="toggleLangMenu()">🌐 <span id="lang-current">EN</span></button>
-            <div id="lang-menu" class="lang-menu hidden">
-              <input id="lang-search" type="text" oninput="filterLangs()" />
-              <ul id="lang-list"></ul>
-            </div>
+        <div id="lang-dd" class="lang-dd">
+          <button id="lang-btn" type="button" onclick="toggleLangMenu()">🌐 <span id="lang-current">EN</span></button>
+          <div id="lang-menu" class="lang-menu hidden">
+            <input id="lang-search" type="text" oninput="filterLangs()" />
+            <ul id="lang-list"></ul>
           </div>
-          <button id="settings-btn" class="corner-btn" onclick="openSettings()" data-i18n-title="settings">⚙️</button>
         </div>
+        <button id="profile-btn" class="corner-btn" onclick="openProfile()" data-i18n-title="profile">👤</button>
         <button id="help-btn" class="corner-btn" onclick="openHelp()" data-i18n-title="help">❓</button>
+        <button id="settings-btn" class="corner-btn" onclick="openSettings()" data-i18n-title="settings">⚙️</button>
       </div>
 
       <div class="logo-block">
@@ -96,7 +94,7 @@
         <h1 class="game-title"><span class="t-snake">SNAKE</span><span class="t-2048">2048</span></h1>
       </div>
 
-      <input id="name-input" type="text" maxlength="14" autocomplete="off"/>
+      <input id="name-input" type="text" maxlength="14" autocomplete="off" enterkeyhint="done" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"/>
       <button id="dl-game-btn" class="ghost-btn dl-game-btn" onclick="openDownload()">⬇ <span data-i18n="dlGame">تحميل اللعبة</span></button>
 
       <!-- بوتات + شكل جنباً إلى جنب -->
@@ -336,10 +334,7 @@
             <span class="toggle-label">🤖 <span data-i18n="aiEnemies">AI</span></span>
             <label class="toggle-switch"><input type="checkbox" id="pause-ai-toggle" onchange="togglePauseAI()" /><span class="slider"></span></label>
           </div>
-          <div class="toggle-row">
-            <span class="toggle-label">🔊 <span data-i18n="sound">الصوت</span></span>
-            <label class="toggle-switch"><input type="checkbox" id="pause-snd-toggle" onchange="toggleSound()" /><span class="slider"></span></label>
-          </div>
+          <button class="ghost-btn pause-sound-btn" onclick="openSettings()">🔊 <span data-i18n="sound">الصوت</span> ⚙️</button>
         </div>
         <button class="ghost-btn" onclick="exitToMenu()" data-i18n="exit">الخروج للقائمة</button>
       </div>
@@ -371,7 +366,7 @@
       <button data-emoji="😂">😂<span class="kbd">4</span></button>
       <button data-emoji="💀">💀<span class="kbd">5</span></button>
     </div>
-    <button id="emoji-arrow" class="emoji-q arrow" onclick="toggleEmojiBar()" aria-label="more">▾</button>
+    <button id="emoji-arrow" class="emoji-q arrow" aria-label="more">▾</button>
   </div>
 
   <script defer src="particles.js"></script>
