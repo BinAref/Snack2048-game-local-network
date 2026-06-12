@@ -507,8 +507,8 @@ body::after {
 .lock-btn { flex: 0 0 54px; width: 54px; border-radius: var(--radius-sm); border: 2px solid var(--border-neon); background: rgba(0,212,255,0.06); font-size: 20px; cursor: pointer; color: var(--text-primary); }
 .lock-btn.open { border-color: var(--neon-green); box-shadow: var(--glow-green); }
 .lock-btn.locked { border-color: var(--neon-gold); background: rgba(243,156,18,0.12); box-shadow: var(--glow-gold); }
-.play-row { display: flex; gap: 8px; align-items: stretch; }
-.play-row .main-btn { flex: 1; }
+.play-row { display: flex; gap: 8px; align-items: stretch; width: 100%; } /* بعرض القسم كاملاً: القفل في أقصى الطرف و«العب أونلاين» يملأ الباقي */
+.play-row .main-btn { flex: 1; min-width: 0; }
 
 /* ===== الأزرار الرئيسية ===== */
 .main-btn {
